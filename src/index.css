@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,48 +6,54 @@
 
 @layer base {
   :root {
-    --background: 224 30% 15%;
-    --foreground: 210 33% 96%;
+    /* Fondo sumamente oscuro elegante (Slate 950) */
+    --background: 226 58% 7%;
+    --foreground: 210 40% 98%;
 
-    --card: 228 29% 21%;
-    --card-foreground: 210 33% 96%;
+    /* Tarjetas levemente más claras (Slate 900) con bordes Slate 800 */
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 228 29% 21%;
-    --popover-foreground: 210 33% 96%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 174 84% 32%;
-    --primary-foreground: 210 33% 96%;
+    /* Teal/Esmeralda #0D9488 (175 84% 32%) */
+    --primary: 175 84% 32%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 228 29% 26%;
-    --secondary-foreground: 210 33% 96%;
+    /* Secondary interactions suaves (Slate 800) */
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 228 20% 30%;
-    --muted-foreground: 215 19% 65%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 174 84% 32%;
-    --accent-foreground: 210 33% 96%;
+    /* Acentos vibrantes, ej. Indígo para gradientes */
+    --accent: 243 75% 59%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 33% 96%;
+    --destructive: 348 83% 47%; /* Rose 600 */
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 228 20% 28%;
-    --input: 228 20% 28%;
-    --ring: 174 84% 32%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 175 84% 32%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* Más redondeado y moderno */
 
     --success: 160 84% 39%;
     --warning: 38 92% 50%;
-    --danger: 0 84% 60%;
+    --danger: 348 83% 47%;
 
-    --sidebar-background: 224 30% 12%;
-    --sidebar-foreground: 210 33% 96%;
-    --sidebar-primary: 174 84% 32%;
-    --sidebar-primary-foreground: 210 33% 96%;
-    --sidebar-accent: 228 29% 21%;
-    --sidebar-accent-foreground: 210 33% 96%;
-    --sidebar-border: 228 20% 22%;
-    --sidebar-ring: 174 84% 32%;
+    /* Sidebar despegado del fondo */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 175 84% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 28% 17%;
+    --sidebar-ring: 175 84% 32%;
   }
 }
 
@@ -58,7 +64,7 @@
 
   body {
     @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   }
 }
 

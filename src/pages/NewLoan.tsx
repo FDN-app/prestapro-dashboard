@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { clients, formatCurrency } from '@/data/mockData';
+import { formatCurrency } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,17 +8,23 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrestamos } from '@/hooks/usePrestamos';
+import { useClientes } from '@/hooks/useClientes';
 
 export default function NewLoan() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const preselectedClient = params.get('clientId') || '';
+  
+  const { clientes, isLoading: isLoadingClientes } = useClientes();
 
   const [clientId, setClientId] = useState(preselectedClient);
   const [amount, setAmount] = useState(500000);
   const [rate, setRate] = useState(10);
+  const [comision, setComision] = useState(0);
   const [rateType, setRateType] = useState<'fijo' | 'variable'>('fijo');
-  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>('semanal');
+  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'personalizado'>('semanal');
+  const [customDays, setCustomDays] = useState(28);
   const [installments, setInstallments] = useState(12);
   const [promissory, setPromissory] = useState(false);
   const [notes, setNotes] = useState('');
@@ -26,7 +32,7 @@ export default function NewLoan() {
   const totalToPay = useMemo(() => amount * (1 + rate / 100), [amount, rate]);
   const perInstallment = useMemo(() => installments > 0 ? Math.round(totalToPay / installments) : 0, [totalToPay, installments]);
 
-  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 14 : 30;
+  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 14 : frequency === 'mensual' ? 30 : customDays;
 
   const schedule = useMemo(() => {
     const today = new Date();
@@ -41,21 +47,58 @@ export default function NewLoan() {
     });
   }, [installments, freqDays, perInstallment]);
 
-  const handleSubmit = () => {
-    if (!clientId || amount <= 0 || installments <= 0) {
+  const { createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando } = usePrestamos();
+  const oldLoanId = params.get('refinanciar');
+
+  const handleSubmit = async () => {
+    if (!clientId || amount <= 0 || installments <= 0 || (frequency === 'personalizado' && customDays <= 0)) {
       toast.error('Completá todos los campos obligatorios');
       return;
     }
-    toast.success('Préstamo creado exitosamente');
-    navigate(-1);
+    
+    // Preparar el payload para el RPC
+    let payload: any = {
+      p_cliente_id: clientId,
+      p_monto_original: amount,
+      p_tasa_interes: rate,
+      p_comision: comision,
+      p_tipo_interes: rateType,
+      p_cantidad_cuotas: installments,
+      p_frecuencia_pago: frequency,
+      p_frecuencia_dias: frequency === 'personalizado' ? customDays : freqDays,
+      p_fecha_inicio: new Date().toISOString().split('T')[0],
+      p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
+      p_cuotas: schedule.map(s => {
+        const [dd, mm, yyyy] = s.date.split('/');
+        return {
+          num: s.number,
+          monto: s.amount,
+          fecha_vto: `${yyyy}-${mm}-${dd}`
+        };
+      })
+    };
+
+    try {
+      if (oldLoanId) {
+        payload.p_viejo_prestamo_id = oldLoanId;
+        await refinanciarPrestamo(payload);
+      } else {
+        await createPrestamo(payload);
+      }
+      navigate(-1);
+    } catch (e) {
+      // toast is inside hook
+    }
   };
+
+  const isWorking = isCreating || isRefinanciando;
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Volver
       </button>
-      <h2 className="text-xl font-bold">Nuevo Préstamo</h2>
+      <h2 className="text-xl font-bold">{oldLoanId ? 'Refinanciar Préstamo' : 'Nuevo Préstamo'}</h2>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Form */}
@@ -64,12 +107,18 @@ export default function NewLoan() {
             <Label>Cliente *</Label>
             <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
               <option value="">Seleccionar cliente</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="space-y-2">
-            <Label>Monto del préstamo ($) *</Label>
-            <Input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Monto base ($) *</Label>
+              <Input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Comisión inicial ($)</Label>
+              <Input type="number" value={comision} onChange={e => setComision(Number(e.target.value))} />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -90,14 +139,28 @@ export default function NewLoan() {
               <select value={frequency} onChange={e => setFrequency(e.target.value as any)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
                 <option value="semanal">Semanal</option>
                 <option value="quincenal">Quincenal</option>
-                <option value="mensual">Mensual</option>
+                <option value="mensual">Mensual (30 d)</option>
+                <option value="personalizado">Personalizado</option>
               </select>
             </div>
+            {frequency === 'personalizado' ? (
+              <div className="space-y-2">
+                <Label>Días *</Label>
+                <Input type="number" value={customDays} onChange={e => setCustomDays(Number(e.target.value))} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Cuotas *</Label>
+                <Input type="number" value={installments} onChange={e => setInstallments(Number(e.target.value))} />
+              </div>
+            )}
+          </div>
+          {frequency === 'personalizado' && (
             <div className="space-y-2">
               <Label>Cuotas *</Label>
               <Input type="number" value={installments} onChange={e => setInstallments(Number(e.target.value))} />
             </div>
-          </div>
+          )}
           <div className="flex items-center justify-between">
             <Label>Pagaré</Label>
             <Switch checked={promissory} onCheckedChange={setPromissory} />
@@ -106,7 +169,11 @@ export default function NewLoan() {
             <Label>Notas</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas opcionales..." />
           </div>
-          <Button className="w-full" onClick={handleSubmit}>Confirmar Préstamo</Button>
+          <div className="flex justify-end pt-4">
+          <Button size="lg" className="w-full sm:w-auto" onClick={handleSubmit} disabled={isWorking}>
+            {isWorking ? 'Guardando...' : (oldLoanId ? 'Confirmar Refinanciamiento' : 'Crear Préstamo')}
+          </Button>
+        </div>
         </div>
 
         {/* Preview */}

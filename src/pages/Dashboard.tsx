@@ -1,96 +1,329 @@
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { recentPayments, formatCurrency } from '@/data/mockData';
-import { useState } from 'react';
-
-const semaphore = [
-  { label: 'AL DÍA', count: 15, color: 'border-status-green', textColor: 'status-green', filter: 'al_dia' },
-  { label: 'POR VENCER', count: 8, color: 'border-status-yellow', textColor: 'status-yellow', filter: 'por_vencer' },
-  { label: 'EN MORA', count: 4, color: 'border-status-red', textColor: 'status-red', filter: 'en_mora' },
-];
-
-const metrics = [
-  { label: 'Capital disponible', value: 2500000 },
-  { label: 'Capital en calle', value: 8200000 },
-  { label: 'Ingresos del mes', value: 1850000, hasFilter: true },
-  { label: 'Por cobrar', value: 3100000 },
-  { label: 'Mora total', value: 1100000 },
-];
+import { formatCurrency } from '@/data/mockData';
+import { useClientes } from '@/hooks/useClientes';
+import { useCapital } from '@/hooks/useCapital';
+import { usePrestamos } from '@/hooks/usePrestamos';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState('mes');
 
+  const { clientes, isLoading: loadingClientes } = useClientes();
+  const { movimientos, isLoading: loadingCapital } = useCapital();
+  const { prestamos, isLoading: loadingPrestamos } = usePrestamos();
+
+  const loading = loadingClientes || loadingCapital || loadingPrestamos;
+
+  // Calculamos el semáforo en base a los clientes
+  const semaphoreStats = useMemo(() => {
+    let alDia = 0;
+    let atraso = 0;
+    clientes.forEach(c => {
+      if (c.status === 'al_dia') alDia++;
+      if (c.status === 'atraso') atraso++;
+    });
+    return [
+      { label: 'AL DÍA', count: alDia, color: 'border-status-green', textColor: 'text-status-green', filter: 'al_dia' },
+      { label: 'EN MORA', count: atraso, color: 'border-status-red', textColor: 'text-status-red', filter: 'en_mora' },
+    ];
+  }, [clientes]);
+
+  // Calculamos las métricas financieras
+  const financialMetrics = useMemo(() => {
+    let capitalEnCalle = 0;
+    let moraTotal = 0;
+    
+    prestamos.filter(p => !['pagado', 'liquidado'].includes(p.estado)).forEach(p => {
+      capitalEnCalle += p.saldo_pendiente;
+      if (p.estado === 'mora') {
+        // Asumimos que si está en mora, todo su saldo cuenta como en riesgo (Mora total)
+        moraTotal += p.saldo_pendiente;
+      }
+    });
+
+    // Ingresos del mes: sumatoria de todos los ingresos_por_pago filtrados por periodo
+    const today = new Date();
+    const ingresos = movimientos
+      .filter(m => m.tipo === 'ingreso_por_pago')
+      .filter(m => {
+        const d = new Date(m.fecha);
+        if (period === 'mes') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+        // Simplified filter logic for week/fortnight for MVP
+        if (period === 'semana') return (today.getTime() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
+        if (period === 'quincena') return (today.getTime() - d.getTime()) <= 15 * 24 * 60 * 60 * 1000;
+        return true;
+      })
+      .reduce((sum, m) => sum + m.monto, 0);
+
+    // Capital disponible: Aportes + Ingresos manuales desde Caja - Egresos - Retiros
+    const capitalDisponible = movimientos.reduce((sum, m) => {
+      // Nota: ingreso_por_pago heredado se trata igual si existiese del histórico antiguo.
+      if (['ingreso_por_recaudacion', 'aporte_inicial', 'ingreso_por_pago'].includes(m.tipo)) return sum + m.monto;
+      return sum - m.monto;
+    }, 0);
+
+    return [
+      { label: 'Capital disponible', value: capitalDisponible },
+      { label: 'Capital en calle', value: capitalEnCalle },
+      { label: 'Ingresos', value: ingresos, hasFilter: true },
+      { label: 'Por cobrar', value: capitalEnCalle },
+      { label: 'Mora total', value: moraTotal },
+    ];
+  }, [prestamos, movimientos, period]);
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <h2 className="text-xl font-bold">Dashboard</h2>
 
-      {/* Semáforo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {semaphore.map(s => (
-          <button
-            key={s.label}
-            onClick={() => navigate('/clientes')}
-            className="bg-card rounded-lg p-5 border-t-4 border border-border text-left hover:bg-secondary transition-colors"
-            style={{ borderTopColor: `var(--tw-border-opacity, 1)` }}
-          >
-            <div className={`border-t-4 -mt-5 -mx-5 mb-4 rounded-t-lg ${s.color}`} />
-            <p className={`text-sm font-medium ${s.textColor}`}>{s.label}</p>
-            <p className="text-3xl font-bold mt-1">{s.count}</p>
-            <p className="text-xs text-muted-foreground">clientes</p>
-          </button>
-        ))}
-      </div>
+      {loading ? (
+        <div className="text-muted-foreground animate-pulse p-4 text-center">Cargando métricas...</div>
+      ) : (
+        <>
+          {/* Semáforo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {semaphoreStats.map(s => (
+              <button
+                key={s.label}
+                onClick={() => navigate('/clientes')}
+                className="relative overflow-hidden group bg-card/60 backdrop-blur-md rounded-2xl p-6 border border-border hover:border-primary/50 text-left transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+              >
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-current to-transparent opacity-5 rounded-full blur-2xl -mr-16 -mt-16 ${s.textColor}`} />
+                <div className={`w-12 h-1 rounded-full mb-5 transition-all duration-300 group-hover:w-16 ${s.color.replace('border-', 'bg-')}`} />
+                <p className={`text-sm font-semibold tracking-wider ${s.textColor}`}>{s.label}</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <p className="text-4xl font-extrabold text-foreground">{s.count}</p>
+                  <p className="text-sm text-muted-foreground font-medium">clientes</p>
+                </div>
+              </button>
+            ))}
+          </div>
 
-      {/* Panel Financiero */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">Panel Financiero</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {metrics.map(m => (
-            <div key={m.label} className="bg-card rounded-lg p-4 border border-border">
-              {m.hasFilter && (
-                <select
-                  value={period}
-                  onChange={e => setPeriod(e.target.value)}
-                  className="text-xs bg-secondary text-foreground rounded px-2 py-0.5 mb-2 border-none outline-none"
-                >
-                  <option value="semana">Semana</option>
-                  <option value="quincena">Quincena</option>
-                  <option value="mes">Mes</option>
-                </select>
-              )}
-              <p className="text-xl lg:text-2xl font-bold">{formatCurrency(m.value)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{m.label}</p>
+          {/* Panel Financiero */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-foreground tracking-tight">Panel Financiero</h3>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Actividad Reciente */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">Actividad Reciente</h3>
-        <div className="bg-card rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left p-3 font-medium">Cliente</th>
-                <th className="text-left p-3 font-medium">Monto</th>
-                <th className="text-left p-3 font-medium hidden sm:table-cell">Fecha</th>
-                <th className="text-left p-3 font-medium hidden md:table-cell">Registrado por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentPayments.map((p, i) => (
-                <tr key={i} className="border-b border-border last:border-0 hover:bg-secondary/50">
-                  <td className="p-3">{p.client}</td>
-                  <td className="p-3">{formatCurrency(p.amount)}</td>
-                  <td className="p-3 hidden sm:table-cell">{p.date}</td>
-                  <td className="p-3 hidden md:table-cell text-muted-foreground">{p.registeredBy}</td>
-                </tr>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              {financialMetrics.map(m => (
+                <div key={m.label} className="relative overflow-hidden bg-card/50 backdrop-blur-sm rounded-xl p-5 border border-border/60 hover:bg-secondary/40 transition-colors duration-300 group">
+                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-primary/5 rounded-full blur-xl group-hover:bg-primary/10 transition-colors duration-500" />
+                  
+                  {m.hasFilter && (
+                    <select
+                      value={period}
+                      onChange={e => setPeriod(e.target.value)}
+                      className="absolute top-4 right-4 text-[10px] uppercase font-bold tracking-wider bg-transparent text-primary hover:text-primary/80 border-none outline-none cursor-pointer appearance-none"
+                    >
+                      <option value="semana">7 Días</option>
+                      <option value="quincena">15 Días</option>
+                      <option value="mes">Mensual</option>
+                    </select>
+                  )}
+                  <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">{m.label}</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-foreground tracking-tight">
+                    {formatCurrency(m.value)}
+                  </p>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Tabla Principal de Préstamos Activos */}
+      <div className="pt-2">
+        <h3 className="text-lg font-bold text-foreground tracking-tight mb-4">Préstamos Activos (Simulador)</h3>
+        <PrestamosTable />
       </div>
+    </div>
+  );
+}
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+function PrestamosTable() {
+  const { prestamos, isLoading, updatePrestamo, liquidarPrestamo } = usePrestamos();
+  const navigate = useNavigate();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // States para la fila expandida
+  const [editInteres, setEditInteres] = useState<number>(0);
+  const [editFrecPago, setEditFrecPago] = useState<string>('');
+  const [editFrecDias, setEditFrecDias] = useState<number>(0);
+
+  if (isLoading) return <div className="text-muted-foreground p-4">Cargando préstamos...</div>;
+
+  const activos = prestamos.filter(p => p.estado !== 'pagado' && p.estado !== 'liquidado');
+
+  const handleExpand = (p: any) => {
+    if (expandedId === p.id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(p.id);
+      setEditInteres(p.tasa_interes);
+      setEditFrecPago(p.frecuencia_pago);
+      setEditFrecDias(p.frecuencia_dias || 0);
+    }
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    try {
+      await updatePrestamo({
+        id, 
+        updates: { 
+          tasa_interes: editInteres, 
+          frecuencia_pago: editFrecPago, 
+          frecuencia_dias: editFrecPago === 'personalizado' ? editFrecDias : null 
+        }
+      });
+    } catch (e) {
+      // Error manejado en el hook
+    }
+  };
+
+  const formatFreq = (p: any) => {
+    if (p.frecuencia_pago === 'semanal') return `${p.cantidad_cuotas}s`;
+    if (p.frecuencia_pago === 'quincenal') return `${p.cantidad_cuotas}q`;
+    if (p.frecuencia_pago === 'mensual') return `${p.cantidad_cuotas}m`;
+    if (p.frecuencia_pago === 'personalizado') {
+        if (p.cantidad_cuotas === 1) return `${p.frecuencia_dias}`; // e.g. "28" or "10d"
+        return `${p.cantidad_cuotas} (${p.frecuencia_dias}d)`;
+    }
+    return `${p.cantidad_cuotas}c`;
+  };
+
+  const getInteresAmount = (p: any) => {
+    return (p.monto_original * p.tasa_interes) / 100;
+  };
+
+  return (
+    <div className="w-full overflow-x-auto pb-4">
+      <table className="w-full text-sm border-separate border-spacing-y-2">
+        <thead>
+          <tr className="text-muted-foreground whitespace-nowrap px-4 text-xs tracking-wider uppercase font-semibold">
+            <th className="text-left p-3">Nombre</th>
+            <th className="text-left p-3">CUIL</th>
+            <th className="text-left p-3">Saldo</th>
+            <th className="text-left p-3">Crédito</th>
+            <th className="text-left p-3">Interés</th>
+            <th className="text-left p-3">Cuotas</th>
+            <th className="text-left p-3">Comisión</th>
+            <th className="text-left p-3">Renovados</th>
+            <th className="text-left p-3">Fecha</th>
+          </tr>
+        </thead>
+        <tbody className="bg-transparent">
+          {activos.length === 0 && (
+            <tr><td colSpan={9} className="p-4 text-center text-muted-foreground bg-card/50 rounded-xl">No hay préstamos activos</td></tr>
+          )}
+          {activos.map((p) => (
+            <React.Fragment key={p.id}>
+              <tr 
+                className={cn(
+                  "group transition-all duration-300 cursor-pointer",
+                  expandedId === p.id 
+                    ? "bg-card/90 shadow-md ring-1 ring-primary/20 scale-[1.01]" 
+                    : "bg-card/50 hover:bg-card/80 hover:shadow-lg hover:-translate-y-0.5 hover:ring-1 hover:ring-border"
+                )}
+                onClick={() => handleExpand(p)}
+              >
+                <td className="p-4 font-medium rounded-l-xl text-foreground group-hover:text-primary transition-colors">{p.clientes?.nombre_completo} <span className="text-xs text-primary/70">{p.tasa_interes}%</span></td>
+                <td className="p-4 text-muted-foreground">{p.clientes?.dni}</td>
+                <td className={`p-4 font-extrabold ${p.estado === 'mora' ? 'text-destructive' : 'text-rose-500'}`}>{formatCurrency(p.saldo_pendiente)}</td>
+                <td className="p-4 font-medium">{formatCurrency(p.monto_original)}</td>
+                <td className="p-4 text-muted-foreground">{formatCurrency(getInteresAmount(p))}</td>
+                <td className="p-4 whitespace-nowrap text-muted-foreground font-medium">{formatFreq(p)}</td>
+                <td className="p-4 text-muted-foreground">{p.comision > 0 ? formatCurrency(p.comision) : '-'}</td>
+                <td className="p-4 text-muted-foreground font-semibold">{p.cantidad_renovaciones > 0 ? p.cantidad_renovaciones : '-'}</td>
+                <td className="p-4 text-muted-foreground rounded-r-xl">{new Date(p.fecha_inicio).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '')}</td>
+              </tr>
+              {expandedId === p.id && (
+                <tr>
+                  <td colSpan={9} className="p-0">
+                    <div className="mx-2 mb-4 mt-1 bg-card/30 backdrop-blur-md rounded-xl p-5 border border-primary/20 shadow-inner animate-in slide-in-from-top-2 duration-300">
+                      
+                      <div className="flex flex-col xl:flex-row gap-8">
+                      {/* Editor Rápido */}
+                      <div className="flex-1 space-y-4">
+                        <h4 className="font-semibold text-primary">Modificar Condiciones</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label>Tasa de interés (%)</Label>
+                            <Input type="number" value={editInteres} onChange={e => setEditInteres(Number(e.target.value))} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Frecuencia</Label>
+                            <select value={editFrecPago} onChange={e => setEditFrecPago(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                              <option value="semanal">Semanal</option>
+                              <option value="quincenal">Quincenal</option>
+                              <option value="mensual">Mensual</option>
+                              <option value="personalizado">Personalizado</option>
+                            </select>
+                          </div>
+                          {editFrecPago === 'personalizado' && (
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label>Días de frecuencia</Label>
+                              <Input type="number" value={editFrecDias} onChange={e => setEditFrecDias(Number(e.target.value))} />
+                            </div>
+                          )}
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => handleSaveEdit(p.id)}>Guardar Cambios</Button>
+                      </div>
+
+                      {/* Info adicional y Acciones */}
+                      <div className="flex-1 space-y-4 xl:border-l xl:border-border xl:pl-6">
+                        <h4 className="font-semibold text-primary">Detalle de Avance</h4>
+                        <div className="text-sm space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Estado:</span>
+                            <span className="font-medium capitalize">{p.estado}</span>
+                          </div>
+                          {/* El cálculo exacto de pagados requiere hacer JOIN de cuotas, para este MVP mostramos la metadata del prestamo */}
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Saldo Restante:</span>
+                            <span className="font-medium">{formatCurrency(p.saldo_pendiente)}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          <Button size="sm" className="bg-status-green hover:bg-status-green/90 text-white" onClick={() => navigate(`/registrar-pago?prestamo=${p.id}`)}>Registrar Pago</Button>
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            onClick={() => {
+                              navigate(`/nuevo-prestamo?refinanciar=${p.id}`);
+                            }}
+                          >
+                            Refinanciar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="border-status-blue text-status-blue hover:bg-status-blue/10"
+                            onClick={async () => {
+                              if (window.confirm(`¿Confirmás la liquidación total por ${formatCurrency(p.saldo_pendiente)}?`)) {
+                                await liquidarPrestamo({ prestamo_id: p.id, monto_pago: p.saldo_pendiente });
+                              }
+                            }}
+                          >
+                            Liquidar Anticipado
+                          </Button>
+                        </div>
+                      </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

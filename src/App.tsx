@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { RoleProvider } from "@/contexts/RoleContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -14,7 +14,9 @@ import LoanDetail from "./pages/LoanDetail";
 import RegisterPayment from "./pages/RegisterPayment";
 import Collectors from "./pages/Collectors";
 import AuditLog from "./pages/AuditLog";
+import CapitalFlow from "./pages/CapitalFlow";
 import SettingsPage from "./pages/Settings";
+import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
 import NotFound from "./pages/NotFound";
 
@@ -25,7 +27,7 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
-        <RoleProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
@@ -36,12 +38,14 @@ const App = () => (
             <Route path="/prestamo/:id" element={<AppLayout><LoanDetail /></AppLayout>} />
             <Route path="/registrar-pago" element={<AppLayout><RegisterPayment /></AppLayout>} />
             <Route path="/cobradores" element={<AppLayout><Collectors /></AppLayout>} />
+            <Route path="/capital" element={<AppLayout><CapitalFlow /></AppLayout>} />
             <Route path="/auditoria" element={<AppLayout><AuditLog /></AppLayout>} />
             <Route path="/configuracion" element={<AppLayout><SettingsPage /></AppLayout>} />
+            <Route path="/backups" element={<AppLayout><Backup /></AppLayout>} />
             <Route path="/cobros-pendientes" element={<AppLayout><CollectorPending /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </RoleProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
