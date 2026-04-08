@@ -4,6 +4,7 @@ import { formatCurrency } from '@/data/mockData';
 import { useClientes } from '@/hooks/useClientes';
 import { useCapital } from '@/hooks/useCapital';
 import { usePrestamos } from '@/hooks/usePrestamos';
+import { useCashbox } from '@/hooks/useCashbox';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -12,8 +13,9 @@ export default function Dashboard() {
   const { clientes, isLoading: loadingClientes } = useClientes();
   const { movimientos, isLoading: loadingCapital } = useCapital();
   const { prestamos, isLoading: loadingPrestamos } = usePrestamos();
+  const { totalEnCaja, isLoading: loadingCashbox } = useCashbox();
 
-  const loading = loadingClientes || loadingCapital || loadingPrestamos;
+  const loading = loadingClientes || loadingCapital || loadingPrestamos || loadingCashbox;
 
   // Calculamos el semáforo en base a los clientes
   const semaphoreStats = useMemo(() => {
@@ -37,40 +39,29 @@ export default function Dashboard() {
     prestamos.filter(p => !['pagado', 'liquidado'].includes(p.estado)).forEach(p => {
       capitalEnCalle += p.saldo_pendiente;
       if (p.estado === 'mora') {
-        // Asumimos que si está en mora, todo su saldo cuenta como en riesgo (Mora total)
-        moraTotal += p.saldo_pendiente;
+        const cuotasMora = (p as any).cuotas?.filter((c: any) => c.estado === 'mora' || c.estado === 'vencida') || [];
+        const montoMoraCuotas = cuotasMora.reduce((sum: number, c: any) => sum + (c.monto_total - c.monto_pagado), 0);
+        // Si hay cuotas vencidas sumamos esas, sino estimamos todo el saldo en riesgo (depende relacional)
+        moraTotal += montoMoraCuotas > 0 ? montoMoraCuotas : p.saldo_pendiente;
       }
     });
 
-    // Ingresos del mes: sumatoria de todos los ingresos_por_pago filtrados por periodo
-    const today = new Date();
-    const ingresos = movimientos
-      .filter(m => m.tipo === 'ingreso_por_pago')
-      .filter(m => {
-        const d = new Date(m.fecha);
-        if (period === 'mes') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-        // Simplified filter logic for week/fortnight for MVP
-        if (period === 'semana') return (today.getTime() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
-        if (period === 'quincena') return (today.getTime() - d.getTime()) <= 15 * 24 * 60 * 60 * 1000;
-        return true;
-      })
-      .reduce((sum, m) => sum + m.monto, 0);
-
     // Capital disponible: Aportes + Ingresos manuales desde Caja - Egresos - Retiros
     const capitalDisponible = movimientos.reduce((sum, m) => {
-      // Nota: ingreso_por_pago heredado se trata igual si existiese del histórico antiguo.
       if (['ingreso_por_recaudacion', 'aporte_inicial', 'ingreso_por_pago'].includes(m.tipo)) return sum + m.monto;
       return sum - m.monto;
     }, 0);
 
+    const totalNegocio = capitalDisponible + totalEnCaja + capitalEnCalle;
+
     return [
-      { label: 'Capital disponible', value: capitalDisponible },
-      { label: 'Capital en calle', value: capitalEnCalle },
-      { label: 'Ingresos', value: ingresos, hasFilter: true },
-      { label: 'Por cobrar', value: capitalEnCalle },
+      { label: 'Disponible para prestar', value: capitalDisponible },
+      { label: 'En caja (cobros sin asignar)', value: totalEnCaja },
+      { label: 'En la calle (prestado)', value: capitalEnCalle },
       { label: 'Mora total', value: moraTotal },
+      { label: 'Total del negocio', value: totalNegocio },
     ];
-  }, [prestamos, movimientos, period]);
+  }, [prestamos, movimientos, totalEnCaja]);
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -110,17 +101,6 @@ export default function Dashboard() {
                 <div key={m.label} className="relative overflow-hidden bg-card/50 backdrop-blur-sm rounded-xl p-5 border border-border/60 hover:bg-secondary/40 transition-colors duration-300 group">
                   <div className="absolute -right-4 -top-4 w-16 h-16 bg-primary/5 rounded-full blur-xl group-hover:bg-primary/10 transition-colors duration-500" />
                   
-                  {m.hasFilter && (
-                    <select
-                      value={period}
-                      onChange={e => setPeriod(e.target.value)}
-                      className="absolute top-4 right-4 text-[10px] uppercase font-bold tracking-wider bg-transparent text-primary hover:text-primary/80 border-none outline-none cursor-pointer appearance-none"
-                    >
-                      <option value="semana">7 Días</option>
-                      <option value="quincena">15 Días</option>
-                      <option value="mes">Mensual</option>
-                    </select>
-                  )}
                   <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">{m.label}</p>
                   <p className="text-lg sm:text-xl lg:text-2xl font-extrabold text-foreground tracking-tight">
                     {formatCurrency(m.value)}

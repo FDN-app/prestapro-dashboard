@@ -28,6 +28,9 @@ export default function NewLoan() {
   const [installments, setInstallments] = useState(12);
   const [promissory, setPromissory] = useState(false);
   const [notes, setNotes] = useState('');
+  
+  // By default, first installment date is empty, which means we will default to today + freqDays
+  const [firstInstallmentDate, setFirstInstallmentDate] = useState('');
 
   const totalToPay = useMemo(() => amount * (1 + rate / 100), [amount, rate]);
   const perInstallment = useMemo(() => installments > 0 ? Math.round(totalToPay / installments) : 0, [totalToPay, installments]);
@@ -35,17 +38,34 @@ export default function NewLoan() {
   const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 14 : frequency === 'mensual' ? 30 : customDays;
 
   const schedule = useMemo(() => {
-    const today = new Date();
+    let startD = new Date();
+    if (firstInstallmentDate) {
+      // Parse YYYY-MM-DD cleanly to avoid timezone offsets
+      const [y, m, d] = firstInstallmentDate.split('-');
+      // Start date exactly at that day (we don't add freqDays for the first installment if manual)
+      startD = new Date(Number(y), Number(m) - 1, Number(d));
+    } else {
+      // Default behavior: add freqdays
+      startD.setDate(startD.getDate() + freqDays);
+    }
+    
     return Array.from({ length: installments }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + freqDays * (i + 1));
+      const d = new Date(startD);
+      // For manual date, first installment is exactly that date, subsequent are + freqDays
+      if (firstInstallmentDate) {
+        d.setDate(d.getDate() + freqDays * i);
+      } else {
+        d.setDate(d.getDate() + freqDays * i);
+      }
+      
       return {
         number: i + 1,
         date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        rawDate: d.toISOString().split('T')[0],
         amount: perInstallment,
       };
     });
-  }, [installments, freqDays, perInstallment]);
+  }, [installments, freqDays, perInstallment, firstInstallmentDate]);
 
   const { createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando } = usePrestamos();
   const oldLoanId = params.get('refinanciar');
@@ -57,6 +77,10 @@ export default function NewLoan() {
     }
     
     // Preparar el payload para el RPC
+    const defaultFirstDate = new Date();
+    defaultFirstDate.setDate(defaultFirstDate.getDate() + freqDays);
+    const fechaPrimCuota = firstInstallmentDate || defaultFirstDate.toISOString().split('T')[0];
+
     let payload: any = {
       p_cliente_id: clientId,
       p_monto_original: amount,
@@ -67,13 +91,13 @@ export default function NewLoan() {
       p_frecuencia_pago: frequency,
       p_frecuencia_dias: frequency === 'personalizado' ? customDays : freqDays,
       p_fecha_inicio: new Date().toISOString().split('T')[0],
+      p_fecha_primera_cuota: fechaPrimCuota,
       p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
       p_cuotas: schedule.map(s => {
-        const [dd, mm, yyyy] = s.date.split('/');
         return {
           num: s.number,
           monto: s.amount,
-          fecha_vto: `${yyyy}-${mm}-${dd}`
+          fecha_vto: s.rawDate
         };
       })
     };
@@ -155,12 +179,18 @@ export default function NewLoan() {
               </div>
             )}
           </div>
-          {frequency === 'personalizado' && (
+          <div className="grid grid-cols-2 gap-3">
+            {frequency === 'personalizado' && (
+              <div className="space-y-2">
+                <Label>Cuotas *</Label>
+                <Input type="number" value={installments} onChange={e => setInstallments(Number(e.target.value))} />
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Cuotas *</Label>
-              <Input type="number" value={installments} onChange={e => setInstallments(Number(e.target.value))} />
+              <Label>1° Cuota (Automático si vacío)</Label>
+              <Input type="date" value={firstInstallmentDate} onChange={e => setFirstInstallmentDate(e.target.value)} />
             </div>
-          )}
+          </div>
           <div className="flex items-center justify-between">
             <Label>Pagaré</Label>
             <Switch checked={promissory} onCheckedChange={setPromissory} />

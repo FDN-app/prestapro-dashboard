@@ -51,6 +51,7 @@ CREATE TABLE prestamos (
     frecuencia_pago TEXT NOT NULL,
     frecuencia_dias INT,
     fecha_inicio DATE NOT NULL,
+    fecha_primera_cuota DATE,
     cantidad_renovaciones INT DEFAULT 0,
     estado TEXT CHECK (estado IN ('activo', 'pagado', 'mora', 'refinanciado', 'liquidado')) DEFAULT 'activo',
     notas TEXT,
@@ -183,6 +184,7 @@ CREATE OR REPLACE FUNCTION crear_prestamo_con_cuotas(
     p_frecuencia_pago TEXT,
     p_frecuencia_dias INT,
     p_fecha_inicio DATE,
+    p_fecha_primera_cuota DATE,
     p_cantidad_renovaciones INT,
     p_cuotas JSONB -- Array of { num, monto, fecha_vto }
 ) RETURNS UUID SECURITY DEFINER AS $$
@@ -194,11 +196,11 @@ BEGIN
     INSERT INTO prestamos (
         cliente_id, monto_original, saldo_pendiente, tasa_interes, comision,
         tipo_interes, cantidad_cuotas, frecuencia_pago, frecuencia_dias, fecha_inicio,
-        cantidad_renovaciones, creado_por
+        fecha_primera_cuota, cantidad_renovaciones, creado_por
     ) VALUES (
         p_cliente_id, p_monto_original, p_monto_original, p_tasa_interes, p_comision,
         p_tipo_interes, p_cantidad_cuotas, p_frecuencia_pago, p_frecuencia_dias, p_fecha_inicio,
-        p_cantidad_renovaciones, auth.uid()
+        p_fecha_primera_cuota, p_cantidad_renovaciones, auth.uid()
     ) RETURNING id INTO v_prestamo_id;
 
     -- 2. Insertar las cuotas
