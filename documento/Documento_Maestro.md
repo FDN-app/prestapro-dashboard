@@ -48,33 +48,49 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 - Restauración: el admin sube un Excel de backup, la app valida los datos, muestra resumen ("Se van a restaurar X clientes, X préstamos, X pagos") y el admin confirma antes de ejecutar.
 - Solo el admin tiene acceso a backup y restauración.
 
-## 4. Integración WhatsApp
+### 3.9 Cobros por Período y Control de Rendición
+- **Cobros por Período**: Vista matricial de clientes vs semanas (u otro período). Muestra cuánto pagó cada cliente en cada semana, con totales por columna y fila. Reemplaza el seguimiento tabular semanal en Excel.
+- **Rendición**: El cobrador registra pagos en la calle. El admin visualiza en una sección de "Rendición" qué pagos ingresaron ("Pendiente de rendir") y marca manualmente cuando recibe el dinero físico ("Rendido"). En caso de discrepancias entre lo cobrado y lo rendido, se dispara una alerta visual roja (posible fraude).
+
+### 3.10 Ganancias y Reparto
+- **Reporte de Ganancias**: Vista gráfica y detallada de la utilidad neta (intereses cobrados, excluyendo capital devuelto) fragmentada por semana/mes. Solo interactuable y visible por Administradores.
+- **Reparto (Comisiones)**: Perfiles configurables para empleados. El admin puede asignar, por ejemplo, un 10% de comisión sobre lo cobrado. El reporte descuenta automáticamente esta comisión de la ganancia neta.
+
+## 4. Filosofía de Diseño UX / UI
+- **Todo Colapsable ("Progressive Disclosure")**: Mostrar poca información por defecto. Tablas y listas se reemplazan por tarjetas compactas que revelan detalle exclusivamente al hacer clic.
+- **Mobile First**: Cero *scroll* horizontal. Todos los desglose se apilan verticalmente.
+- Ocultar reportes financieros, rendiciones y ganancias de las vistas del cobrador.
+
+## 5. Integración WhatsApp
 - Mensajes al cliente (Recordatorios, Avisos). Alertas al Admin.
 
-## 5. Asistente Inteligente
+## 6. Asistente Inteligente
 - Chat integrado vía Claude API u OpenAI.
 
-## 6. Log de Auditoría
+## 7. Log de Auditoría
 - Registro inmutable. NADIE puede editar.
 
-## 7. Arquitectura Técnica
+## 8. Arquitectura Técnica
 - **Stack:** React, Vite, TS, Tailwind, Supabase (PostgreSQL).
 - **Modelo de Datos:** perfiles, clientes, prestamos, cuotas, pagos, capital, log_auditoria, config_whatsapp.
 - **Seguridad:** Row Level Security (RLS), Autenticación obligatoria.
 
-## 8. Flujos Lógicos Core
+## 9. Flujos Lógicos Core
 - Admin crea préstamo $\rightarrow$ App calcula $\rightarrow$ Admin revisa $\rightarrow$ Crea préstamo + cuotas.
 - Cobrador registra pago $\rightarrow$ App actualiza monto y saldos.
 
-## 9. Mapa de Pantallas
+## 10. Mapa de Pantallas
 | Pantalla | Descripción |
 | :--- | :--- |
 | **Login** | Ingreso al sistema |
-| **Dashboard** | Resumen financiero y la Tabla principal de Préstamos Activos (Cliente, CUIL, Saldo, Crédito, Interés, Cuotas con su frecuencia, Comisión, Renovados y Fecha de inicio). Cada fila es desplegable para mostrar opciones rápidas (modificar porcentaje de interés, cambiar frecuencia como quincenal/sec/pers, detalle pagado vs pendiente, registrar pago, refinanciar, liquidar). |
+| **Dashboard** | Tarjetas resumen de capital y métricas base. Contiene accesos directos colapsables a "Cobros del período", "Rendiciones", y "Ganancias", además de la tabla compacta de Préstamos Activos desplegable. |
+| **Cobros por Período** | Tarjeta expandible mostrando totales semanales cobrados. Permite profundizar (clic) a la vista de quién pagó y cuánto por semana. |
+| **Rendición** | Resumen de rendición cobrador vs admin. Clickeable para ver el detalle de caja y marcar como "Rendido". |
+| **Ganancias** | Muestra ganancia mensual/semanal en gráfico. Clickeable para desglose completo y visualización del cálculo con porcentajes de reparto a empleados. |
 | **Clientes** | Alta, detalle e historial del cliente |
 | **Préstamo Nuevo** | Simulador y generador atómico del préstamo |
 | **Registrar Pago** | Asiento contable de un cobro de cuota |
-| **Configuración** | Mora, Whatsapp y parámetros generales |
+| **Configuración** | Configuración de empresa, perfiles de reparto de comisiones, Whatsapp. |
 | **Cobradores** | Gestión del personal |
 | **Auditoría** | Trazabilidad inmutable de cambios |
 | **Backups** | Lista de backups disponibles, descarga, backup manual, restauración desde Excel |

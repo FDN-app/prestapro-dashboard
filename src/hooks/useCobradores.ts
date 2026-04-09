@@ -6,6 +6,8 @@ export interface Perfil {
   id: string;
   email: string;
   rol: 'admin' | 'cobrador';
+  nombre?: string;
+  comision_porcentaje?: number;
   creado_en: string;
 }
 
@@ -29,15 +31,38 @@ export function useCobradores() {
     }
   });
 
+  const updateCobrador = useMutation({
+    mutationFn: async ({ id, updates }: { id: string, updates: any }) => {
+      const { data, error } = await supabase
+        .from('perfiles')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Perfil actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['cobradores'] });
+      queryClient.invalidateQueries({ queryKey: ['pagos_admin'] }); // Por si cambia la comision
+    },
+    onError: (error) => {
+      toast.error('Error al actualizar: ' + error.message);
+    }
+  });
+
   const createCobrador = useMutation({
-    mutationFn: async ({ email, password }: any) => {
-      // Registrar usuario. Nota: en Supabase normal esto autologuea al cobrador destituyendo al admin.
+    mutationFn: async ({ email, password, nombre, comision }: any) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            rol: 'cobrador'
+            rol: 'cobrador',
+            nombre: nombre,
+            comision_porcentaje: comision
           }
         }
       });
@@ -49,7 +74,6 @@ export function useCobradores() {
         duration: 3000
       });
       queryClient.invalidateQueries({ queryKey: ['cobradores'] });
-      // Forzamos un deslogueo en 3 seg para que el admin no interactue como cobrador
       setTimeout(() => {
         window.location.reload(); 
       }, 3000);
@@ -63,6 +87,8 @@ export function useCobradores() {
     ...query,
     cobradores: query.data || [],
     createCobrador: createCobrador.mutateAsync,
-    isCreating: createCobrador.isPending
+    isCreating: createCobrador.isPending,
+    updateCobrador: updateCobrador.mutateAsync,
+    isUpdating: updateCobrador.isPending
   };
 }

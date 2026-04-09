@@ -9,6 +9,7 @@ CREATE TABLE perfiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     rol TEXT NOT NULL CHECK (rol IN ('admin', 'cobrador')),
+    comision_porcentaje DECIMAL(5,2) DEFAULT 0,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

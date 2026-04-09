@@ -5,6 +5,9 @@ import { useClientes } from '@/hooks/useClientes';
 import { useCapital } from '@/hooks/useCapital';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCashbox } from '@/hooks/useCashbox';
+import CobrosPeriodo from '@/components/dashboard/CobrosPeriodo';
+import RendicionesPanel from '@/components/dashboard/RendicionesPanel';
+import GananciasReporte from '@/components/dashboard/GananciasReporte';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -112,11 +115,56 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Tabla Principal de Préstamos Activos */}
-      <div className="pt-2">
-        <h3 className="text-lg font-bold text-foreground tracking-tight mb-4">Préstamos Activos (Simulador)</h3>
-        <PrestamosTable />
+      {/* Accordion Sections */}
+      <div className="space-y-4 pt-4">
+        <ExpandableSection title="Cobros del período" subtitle="Matriz semanal de clientes" icon={<span className="text-xl">📅</span>}>
+          <CobrosPeriodo />
+        </ExpandableSection>
+        
+        <ExpandableSection title="Rendiciones" subtitle="Control de caja por cobrador" icon={<span className="text-xl">💰</span>}>
+          <RendicionesPanel />
+        </ExpandableSection>
+        
+        <ExpandableSection title="Ganancias y Utilidades" subtitle="Neto mensual e intereses" icon={<span className="text-xl">📈</span>}>
+          <GananciasReporte />
+        </ExpandableSection>
+        
+        <ExpandableSection title="Préstamos Activos" subtitle="Tabla interactiva y simulador" icon={<span className="text-xl">💸</span>}>
+          <PrestamosTable />
+        </ExpandableSection>
       </div>
+    </div>
+  );
+}
+
+function ExpandableSection({ title, subtitle, icon, children }: { title: string, subtitle: string, icon: React.ReactNode, children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="bg-card/40 border border-border rounded-xl overflow-hidden shadow-sm backdrop-blur-sm">
+      <div 
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-muted/10 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            {icon}
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-foreground">{title}</h3>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+        <div className="text-primary/60">
+          <svg className={`w-5 h-5 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+      {isOpen && (
+        <div className="p-4 border-t border-border/50 bg-background/50">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
