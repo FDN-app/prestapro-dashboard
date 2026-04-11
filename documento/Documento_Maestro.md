@@ -61,7 +61,7 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 - **Mobile First**: Cero *scroll* horizontal. Todos los desglose se apilan verticalmente.
 - Ocultar reportes financieros, rendiciones y ganancias de las vistas del cobrador.
 
-## 5. Integración WhatsApp
+## 5. Integración Telegram Bot API
 - Mensajes al cliente (Recordatorios, Avisos). Alertas al Admin.
 
 ## 6. Asistente Inteligente
@@ -72,7 +72,7 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 
 ## 8. Arquitectura Técnica
 - **Stack:** React, Vite, TS, Tailwind, Supabase (PostgreSQL).
-- **Modelo de Datos:** perfiles, clientes, prestamos, cuotas, pagos, capital, log_auditoria, config_whatsapp.
+- **Modelo de Datos:** perfiles, clientes, prestamos, cuotas, pagos, capital, log_auditoria, config_telegram.
 - **Seguridad:** Row Level Security (RLS), Autenticación obligatoria.
 
 ## 9. Flujos Lógicos Core
@@ -90,7 +90,7 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 | **Clientes** | Alta, detalle e historial del cliente |
 | **Préstamo Nuevo** | Simulador y generador atómico del préstamo |
 | **Registrar Pago** | Asiento contable de un cobro de cuota |
-| **Configuración** | Configuración de empresa, perfiles de reparto de comisiones, Whatsapp. |
+| **Configuración** | Configuración de empresa, perfiles de reparto de comisiones, Telegram. |
 | **Cobradores** | Gestión del personal |
 | **Auditoría** | Trazabilidad inmutable de cambios |
 | **Backups** | Lista de backups disponibles, descarga, backup manual, restauración desde Excel |
@@ -112,7 +112,7 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 - **Restauración de datos desde backup Excel**
 
 ### 10.2 Fase 2 (Post-lanzamiento)
-- Integración WhatsApp
+- Integración Telegram Bot API
 - Asistente Inteligente
 - Múltiples carteras de cobro
 - App Nativa PWA
