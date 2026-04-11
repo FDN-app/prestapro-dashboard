@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ export default function RegisterPayment() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const preselectedLoan = params.get('prestamo') || '';
+  const preselectedCuota = params.get('cuota') || '';
 
   const { clientes, isLoading: loadingClientes } = useClientes();
   const { prestamos, isLoading: loadingPrestamos } = usePrestamos();
@@ -26,7 +27,7 @@ export default function RegisterPayment() {
 
   const [clientId, setClientId] = useState(initialClient);
   const [loanId, setLoanId] = useState(preselectedLoan);
-  const [installmentId, setInstallmentId] = useState('');
+  const [installmentId, setInstallmentId] = useState(preselectedCuota);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('efectivo');
   const [notes, setNotes] = useState('');
@@ -39,6 +40,13 @@ export default function RegisterPayment() {
   const selectedInst = pendingInstallments.find(i => i.id === installmentId);
   const remainingAmount = selectedInst ? (selectedInst.monto_cuota - selectedInst.monto_cobrado) : 0;
   
+  useEffect(() => {
+    if (installmentId && pendingInstallments.length > 0 && !amount) {
+      const inst = pendingInstallments.find(i => i.id === installmentId);
+      if (inst) setAmount((inst.monto_cuota - inst.monto_cobrado).toString());
+    }
+  }, [installmentId, pendingInstallments, amount]);
+
   const isPartial = amount && Number(amount) < remainingAmount;
 
   const handleInstallmentSelect = (id: string) => {

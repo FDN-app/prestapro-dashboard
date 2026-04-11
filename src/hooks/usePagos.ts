@@ -26,6 +26,8 @@ export function usePagos() {
       queryClient.invalidateQueries({ queryKey: ['cuotas'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['capital'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['auditoria'] });
     },
     onError: (error) => {
