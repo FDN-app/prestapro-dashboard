@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import { useSettings } from '@/hooks/useSettings';
+import { Send } from 'lucide-react';
 
 export default function SettingsPage() {
   const { settings, isLoading, updateSettings, isUpdating } = useSettings();
@@ -10,8 +12,14 @@ export default function SettingsPage() {
     nombre_negocio: '',
     telefono: '',
     mora_porcentaje_default: 5,
-    dias_recordatorio: 2
+    dias_recordatorio: 2,
+    telegram_bot_token: '',
+    telegram_alertas_activas: false,
+    telegram_dias_recordatorio: 2
   });
+
+  const [testChatId, setTestChatId] = useState('');
+  const [isTestingBot, setIsTestingBot] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -19,7 +27,10 @@ export default function SettingsPage() {
         nombre_negocio: settings.nombre_negocio || '',
         telefono: settings.telefono || '',
         mora_porcentaje_default: settings.mora_porcentaje_default || 0,
-        dias_recordatorio: settings.dias_recordatorio || 0
+        dias_recordatorio: settings.dias_recordatorio || 2,
+        telegram_bot_token: settings.telegram_bot_token || '',
+        telegram_alertas_activas: settings.telegram_alertas_activas || false,
+        telegram_dias_recordatorio: settings.telegram_dias_recordatorio || 2
       });
     }
   }, [settings]);
@@ -30,44 +41,128 @@ export default function SettingsPage() {
     await updateSettings(form);
   };
 
+  const handleTestBot = async () => {
+    if (!form.telegram_bot_token) {
+      toast.error('Guarda el token del bot primero');
+      return;
+    }
+    if (!testChatId) {
+      toast.error('Ingresa un Chat ID para recibir el test');
+      return;
+    }
+    setIsTestingBot(true);
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${form.telegram_bot_token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: testChatId, text: '🟢 ¡Hola! Test de integración de Telegram Bot API para PrestaPro exitoso.' })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success('Mensaje enviado exitosamente');
+      } else {
+        toast.error('Error de Telegram: ' + data.description);
+      }
+    } catch (e: any) {
+      toast.error('Error de red: ' + e.message);
+    }
+    setIsTestingBot(false);
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <h2 className="text-xl font-bold">Configuración</h2>
 
-      <div className="bg-card rounded-lg border border-border p-5 space-y-4 max-w-lg">
-        <div className="space-y-2">
-          <Label>Nombre del negocio</Label>
-          <Input 
-            value={form.nombre_negocio} 
-            onChange={e => setForm({...form, nombre_negocio: e.target.value})} 
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="bg-card rounded-lg border border-border p-5 space-y-4">
+          <h3 className="text-lg font-semibold border-b pb-2">Datos del Negocio</h3>
+          <div className="space-y-2">
+            <Label>Nombre del negocio</Label>
+            <Input 
+              value={form.nombre_negocio} 
+              onChange={e => setForm({...form, nombre_negocio: e.target.value})} 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Teléfono del negocio</Label>
+            <Input 
+              value={form.telefono} 
+              onChange={e => setForm({...form, telefono: e.target.value})} 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Mora por defecto (%)</Label>
+            <Input 
+              type="number" 
+              value={form.mora_porcentaje_default} 
+              onChange={e => setForm({...form, mora_porcentaje_default: Number(e.target.value)})} 
+            />
+          </div>
+          <Button onClick={handleSave} disabled={isUpdating} className="w-full">
+            {isUpdating ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
         </div>
-        <div className="space-y-2">
-          <Label>Teléfono del negocio</Label>
-          <Input 
-            value={form.telefono} 
-            onChange={e => setForm({...form, telefono: e.target.value})} 
-          />
+
+        <div className="bg-card rounded-lg border border-border p-5 space-y-4">
+          <h3 className="text-lg font-semibold border-b border-border pb-2 flex items-center gap-2">
+            <Send size={18} className="text-[#0088cc]" /> Telegram Bot API
+          </h3>
+          
+          <div className="space-y-2">
+            <Label>Habilitar / Deshabilitar Alertas</Label>
+            <div className="flex items-center gap-3 mt-1">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={form.telegram_alertas_activas} 
+                  onChange={e => setForm({...form, telegram_alertas_activas: e.target.checked})} 
+                />
+                <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0088cc]"></div>
+              </label>
+              <span className="text-sm text-muted-foreground">{form.telegram_alertas_activas ? 'Alertas Activadas' : 'Alertas Desactivadas'}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <Label>Token del Bot de Telegram</Label>
+            <Input 
+              type="password"
+              placeholder="Ej: 8633232394:AAFv8Fg..."
+              value={form.telegram_bot_token} 
+              onChange={e => setForm({...form, telegram_bot_token: e.target.value})} 
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Días de aviso previo al vencimiento</Label>
+            <select 
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              value={form.telegram_dias_recordatorio}
+              onChange={e => setForm({...form, telegram_dias_recordatorio: Number(e.target.value)})}
+            >
+              <option value={1}>1 día antes</option>
+              <option value={2}>2 días antes</option>
+              <option value={3}>3 días antes</option>
+            </select>
+          </div>
+
+          <div className="pt-4 mt-4 border-t border-border">
+            <Label className="text-xs text-muted-foreground mb-2 block">Caja de Pruebas</Label>
+            <div className="flex items-center gap-2">
+              <Input 
+                className="h-8 text-sm bg-background border-border"
+                placeholder="Tu Chat ID" 
+                value={testChatId} 
+                onChange={e => setTestChatId(e.target.value)} 
+              />
+              <Button onClick={handleTestBot} disabled={isTestingBot} size="sm" variant="outline" className="text-[#0088cc] border-[#0088cc] hover:bg-[#0088cc] hover:text-white">
+                {isTestingBot ? 'Enviando...' : 'Probar'}
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>Mora por defecto (%)</Label>
-          <Input 
-            type="number" 
-            value={form.mora_porcentaje_default} 
-            onChange={e => setForm({...form, mora_porcentaje_default: Number(e.target.value)})} 
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Días de recordatorio antes del vencimiento</Label>
-          <Input 
-            type="number" 
-            value={form.dias_recordatorio} 
-            onChange={e => setForm({...form, dias_recordatorio: Number(e.target.value)})} 
-          />
-        </div>
-        <Button onClick={handleSave} disabled={isUpdating}>
-          {isUpdating ? 'Guardando...' : 'Guardar Cambios'}
-        </Button>
+
       </div>
     </div>
   );

@@ -480,3 +480,26 @@ BEGIN
     WHERE prestamo_id = p_prestamo_id AND estado IN ('pendiente', 'parcial', 'vencida');
 END;
 $$ LANGUAGE plpgsql;
+
+-- ==============================================================================
+-- FASE 2: Integración Telegram Bot API
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS mensajes_telegram (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cliente_id UUID REFERENCES clientes(id),
+    prestamo_id UUID REFERENCES prestamos(id),
+    tipo_mensaje TEXT CHECK (tipo_mensaje IN ('recordatorio', 'vencimiento', 'confirmacion_pago', 'alerta_admin')),
+    contenido TEXT,
+    estado TEXT CHECK (estado IN ('enviado', 'error', 'pendiente')) DEFAULT 'pendiente',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE mensajes_telegram ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Visibles para todos" ON mensajes_telegram FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Insertable por auth" ON mensajes_telegram FOR INSERT TO authenticated WITH CHECK (true);
+
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
+ALTER TABLE settings_empresa ADD COLUMN IF NOT EXISTS telegram_bot_token TEXT;
+ALTER TABLE settings_empresa ADD COLUMN IF NOT EXISTS telegram_alertas_activas BOOLEAN DEFAULT false;
+ALTER TABLE settings_empresa ADD COLUMN IF NOT EXISTS telegram_dias_recordatorio INT DEFAULT 2;

@@ -9,6 +9,9 @@ export interface Settings {
   mora_porcentaje_default: number;
   dias_recordatorio: number;
   moneda: string;
+  telegram_bot_token?: string;
+  telegram_alertas_activas?: boolean;
+  telegram_dias_recordatorio?: number;
 }
 
 export function useSettings() {
