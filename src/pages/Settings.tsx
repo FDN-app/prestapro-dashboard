@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useSettings } from '@/hooks/useSettings';
 import { Send } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
   const { settings, isLoading, updateSettings, isUpdating } = useSettings();
@@ -42,29 +43,32 @@ export default function SettingsPage() {
   };
 
   const handleTestBot = async () => {
-    if (!form.telegram_bot_token) {
-      toast.error('Guarda el token del bot primero');
-      return;
-    }
     if (!testChatId) {
       toast.error('Ingresa un Chat ID para recibir el test');
       return;
     }
     setIsTestingBot(true);
     try {
-      const res = await fetch(`https://api.telegram.org/bot${form.telegram_bot_token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: testChatId, text: '🟢 ¡Hola! Test de integración de Telegram Bot API para PrestaPro exitoso.' })
+      // Llamar a nuestra Edge Function recién creada
+      const { data, error } = await supabase.functions.invoke('enviar-telegram', {
+        body: { 
+            chat_id: testChatId, 
+            mensaje: '🟢 ¡Hola! Test de integración de Telegram Bot API mediante Edge Function exitoso.',
+            tipo_mensaje: 'alerta_admin'
+        }
       });
-      const data = await res.json();
-      if (data.ok) {
+      
+      if (error) {
+          throw new Error(error.message);
+      }
+      
+      if (data && data.success) {
         toast.success('Mensaje enviado exitosamente');
       } else {
-        toast.error('Error de Telegram: ' + data.description);
+        toast.error('Error reportado por Telegram: ' + JSON.stringify(data));
       }
     } catch (e: any) {
-      toast.error('Error de red: ' + e.message);
+      toast.error('Error llamando a la Edge Function: ' + e.message);
     }
     setIsTestingBot(false);
   };
