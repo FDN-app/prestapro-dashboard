@@ -9,6 +9,7 @@ export interface Cliente {
   telefono: string;
   direccion: string | null;
   notas: string | null;
+  telegram_chat_id?: string | null;
   estado: 'activo' | 'inactivo';
   creado_en: string;
 }
@@ -93,10 +94,33 @@ export function useClientes() {
     }
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Cliente> }) => {
+      const { data, error } = await supabase
+        .from('clientes')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Cliente actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (error) => {
+      toast.error('Error al actualizar el cliente: ' + error.message);
+    }
+  });
+
   return {
     ...query,
     clientes: query.data || [],
     createCliente: createMutation.mutateAsync,
-    isCreating: createMutation.isPending
+    updateCliente: updateMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending
   };
 }

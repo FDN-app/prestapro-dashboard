@@ -116,12 +116,26 @@ function LoanAccordionItem({ loan }: { loan: any }) {
   );
 }
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+
 export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  const { clientes, isLoading: isLoadingClientes } = useClientes();
+  const { clientes, isLoading: isLoadingClientes, updateCliente, isUpdating } = useClientes();
   const { prestamos, isLoading: isLoadingPrestamos } = usePrestamos();
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nombre_completo: '',
+    telefono: '',
+    direccion: '',
+    notas: '',
+    telegram_chat_id: ''
+  });
 
   if (isLoadingClientes || isLoadingPrestamos) {
     return <div className="p-6 text-muted-foreground">Cargando datos del cliente...</div>;
@@ -133,6 +147,32 @@ export default function ClientDetail() {
   if (!client) return <div className="p-6">Cliente no encontrado.</div>;
 
   const goodPayer = client.status === 'al_dia' || client.status === 'pagado';
+
+  const handleEditClick = () => {
+    setEditForm({
+      nombre_completo: client.nombre_completo || client.name || '',
+      telefono: client.telefono || client.phone || '',
+      direccion: client.direccion || '',
+      notas: client.notas || '',
+      telegram_chat_id: client.telegram_chat_id || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      await updateCliente({ id: client.id, updates: {
+        nombre_completo: editForm.nombre_completo,
+        telefono: editForm.telefono,
+        direccion: editForm.direccion,
+        notas: editForm.notas,
+        telegram_chat_id: editForm.telegram_chat_id
+      }});
+      setIsEditModalOpen(false);
+    } catch (e) {
+      // ya manejado por toast en el hook
+    }
+  };
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -147,12 +187,13 @@ export default function ClientDetail() {
             <h2 className="text-2xl font-bold">{client.name}</h2>
             <span className={`text-sm ${statusColor(client.status)}`}>{statusLabel(client.status)}</span>
           </div>
-          <Button variant="outline" size="sm"><Pencil size={14} className="mr-1" /> Editar</Button>
+          <Button variant="outline" size="sm" onClick={handleEditClick}><Pencil size={14} className="mr-1" /> Editar</Button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-sm">
           <div><span className="text-muted-foreground">Teléfono:</span> {client.phone}</div>
           <div><span className="text-muted-foreground">DNI:</span> {client.dni}</div>
           <div><span className="text-muted-foreground">Dirección:</span> {client.direccion || '-'}</div>
+          {client.telegram_chat_id && <div><span className="text-muted-foreground">Telegram Chat ID:</span> {client.telegram_chat_id}</div>}
           {client.notas && <div className="sm:col-span-2"><span className="text-muted-foreground">Notas:</span> {client.notas}</div>}
         </div>
       </div>
@@ -176,6 +217,57 @@ export default function ClientDetail() {
           {clientLoans.length === 0 && <p className="text-sm text-muted-foreground">No hay préstamos registrados.</p>}
         </div>
       </div>
+
+      {/* Modal Editar Cliente */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Nombre Completo</Label>
+              <Input 
+                value={editForm.nombre_completo} 
+                onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input 
+                value={editForm.telefono} 
+                onChange={e => setEditForm({...editForm, telefono: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Dirección</Label>
+              <Input 
+                value={editForm.direccion} 
+                onChange={e => setEditForm({...editForm, direccion: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Telegram Chat ID</Label>
+              <Input 
+                value={editForm.telegram_chat_id} 
+                onChange={e => setEditForm({...editForm, telegram_chat_id: e.target.value})} 
+                placeholder="Ej. 1694629692"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Textarea 
+                value={editForm.notas} 
+                onChange={e => setEditForm({...editForm, notas: e.target.value})} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={isUpdating}>{isUpdating ? 'Guardando...' : 'Guardar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
