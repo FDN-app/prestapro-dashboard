@@ -296,38 +296,82 @@ export default function ClientDetail() {
       </button>
 
       {/* Header Ficha Cliente */}
-      <div className="bg-card rounded-lg border border-border p-5 relative">
-        <Button variant="ghost" size="sm" onClick={handleEditClick} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
-          <Pencil size={15} className="mr-2" /> Editar
-        </Button>
-        
-        <div className="flex flex-col">
-          <h2 className="text-2xl font-bold">{client.name}</h2>
-          <span className={`text-sm mt-1 w-fit px-2 py-0.5 rounded-full bg-secondary ${statusColor(client.status)}`}>{statusLabel(client.status)}</span>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-5 text-sm">
-          <div><span className="block text-xs text-muted-foreground mb-1">DNI</span> {client.dni}</div>
-          <div><span className="block text-xs text-muted-foreground mb-1">Teléfono</span> {client.phone}</div>
-          
-          {client.telegram_chat_id && (
-            <div>
-              <span className="block text-xs text-muted-foreground mb-1 text-[#0088cc]">Telegram Chat ID</span> 
-              <span className="font-medium text-[#0088cc]">{client.telegram_chat_id}</span>
+      <div className="bg-card rounded-xl border border-border p-5 lg:p-6 relative overflow-hidden">
+        {/* Decorative background element based on status */}
+        <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-10 ${goodPayer ? 'bg-status-green' : 'bg-status-red'}`} />
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shadow-sm ${goodPayer ? 'bg-status-green/20 text-status-green' : 'bg-status-red/20 text-status-red'}`}>
+              {(client.nombre_completo || client.name || '?').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
             </div>
-          )}
-          
-          <div className="sm:col-span-2 md:col-span-full">
-            <span className="block text-xs text-muted-foreground mb-1">Dirección</span> {client.direccion || '-'}
+            
+            {/* Titulo y Estado */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight mb-1">{client.nombre_completo || client.name}</h2>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2.5 py-0.5 rounded-full shadow-sm font-medium ${statusColor(client.status)}`}>
+                  {statusLabel(client.status)}
+                </span>
+                <span className="text-xs text-muted-foreground">ID: {client.id.substring(0, 8)}</span>
+              </div>
+            </div>
           </div>
           
-          {client.notas && (
-            <div className="sm:col-span-2 md:col-span-full bg-secondary/50 p-3 rounded-md border border-border/50">
-              <span className="block text-xs text-muted-foreground mb-1">Notas</span> 
-              {client.notas}
-            </div>
-          )}
+          <Button variant="outline" size="sm" onClick={handleEditClick} className="shrink-0 w-full sm:w-auto h-8 text-xs font-medium">
+            <Pencil size={13} className="mr-1.5" /> Editar Perfil
+          </Button>
         </div>
+        
+        {/* Grid Datos Personales */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 text-sm relative z-10 border-b border-border/50 pb-5">
+          <div className="flex flex-col border-l-2 border-primary/20 pl-3">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">DNI</span> 
+            <span className="font-medium text-foreground">{client.dni}</span>
+          </div>
+          <div className="flex flex-col border-l-2 border-primary/20 pl-3">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Teléfono / Contacto</span> 
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">{client.phone}</span>
+              {client.telegram_chat_id && (
+                <span className="inline-flex items-center justify-center bg-[#0088cc]/10 text-[#0088cc] text-[10px] px-1.5 py-0.5 rounded font-bold" title={`Telegram ID: ${client.telegram_chat_id}`}>
+                  TEL
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col border-l-2 border-primary/20 pl-3">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">Dirección</span> 
+            <span className="font-medium text-foreground truncate" title={client.direccion || '-'}>{client.direccion || '-'}</span>
+          </div>
+        </div>
+
+        {/* Metrics Row */}
+        <div className="grid grid-cols-3 gap-2 mt-4 text-center relative z-10">
+          <div className="bg-secondary/40 rounded-lg p-3">
+            <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Fecha de Alta</span>
+            <span className="text-sm font-semibold">{client.creado_en ? new Date(client.creado_en).toLocaleDateString() : 'N/D'}</span>
+          </div>
+          <div className="bg-secondary/40 rounded-lg p-3">
+            <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Préstamos</span>
+            <span className="text-sm font-semibold">{clientLoans.length}</span>
+          </div>
+          <div className="bg-secondary/40 rounded-lg p-3">
+            <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Monto Histórico</span>
+            <span className="text-sm font-bold text-primary">
+              {formatCurrency(clientLoans.reduce((acc, curr) => acc + Number(curr.monto_original), 0))}
+            </span>
+          </div>
+        </div>
+
+        {/* Notas (si existen) */}
+        {client.notas && (
+          <div className="mt-4 bg-muted/50 p-3 rounded-lg border border-border/50 text-sm relative z-10">
+            <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Notas</span> 
+            <p className="text-muted-foreground italic leading-relaxed">{client.notas}</p>
+          </div>
+        )}
       </div>
 
       {/* Historial de Préstamos */}
