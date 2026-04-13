@@ -6,14 +6,24 @@ import { Pencil, Plus, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCuotas } from '@/hooks/useCuotas';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 function LoanAccordionItem({ loan }: { loan: any }) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
-  const { cuotas, isLoading } = useCuotas(isExpanded ? loan.id : null);
+  const { cuotas, isLoading } = useCuotas(loan.id); // ALWAYS loaded to populate grid
   
   const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado';
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
+
+  const totalADevolver = cuotas?.reduce((acc: number, c: any) => acc + Number(c.monto_cuota), 0) || 0;
+  const interesTotal = Math.max(0, totalADevolver - Number(loan.monto_original));
+  const valorCuota = cuotas && cuotas.length > 0 ? Number(cuotas[0].monto_cuota) : 0;
+  const cuotasPagadas = cuotas?.filter((c: any) => c.estado === 'pagada').length || 0;
+  const cantidadReal = loan.cantidad_cuotas || cuotas?.length || 0;
 
   const getCuotaStatusStyles = (estado: string, fecha_vencimiento: string) => {
     if (estado === 'pagada') return { label: 'Pagada', classes: 'bg-status-green/10 text-status-green border-status-green/20' };
@@ -23,7 +33,6 @@ function LoanAccordionItem({ loan }: { loan: any }) {
     const today = new Date();
     today.setHours(0,0,0,0);
     const vto = new Date(fecha_vencimiento);
-    // Agregamos timezone offset fix (ignorando horas)
     vto.setMinutes(vto.getMinutes() + vto.getTimezoneOffset());
     
     const diffTime = vto.getTime() - today.getTime();
@@ -39,25 +48,49 @@ function LoanAccordionItem({ loan }: { loan: any }) {
     <div className="bg-card rounded-lg border border-border overflow-hidden transition-all duration-300">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 text-left hover:bg-secondary/50 transition-colors flex flex-col gap-3"
+        className="w-full p-4 text-left hover:bg-secondary/50 transition-colors flex flex-col gap-4"
       >
         <div className="flex items-center justify-between w-full">
           <span className="font-medium text-foreground">Préstamo #{loan.id.substring(0, 8)}...</span>
           <div className="flex items-center gap-2">
-            <span className={`text-xs ${isPagado ? 'status-green' : 'text-primary'}`}>
-              {isPagado ? '✅ Pagado' : `🔄 ${loan.estado.charAt(0).toUpperCase() + loan.estado.slice(1)}`}
+            <span className={`text-xs px-2 py-0.5 rounded-full ${isPagado ? 'bg-status-green/10 text-status-green' : (loan.estado === 'mora' ? 'bg-status-red/10 text-status-red' : 'bg-primary/10 text-primary')}`}>
+              {loan.estado.charAt(0).toUpperCase() + loan.estado.slice(1)}
             </span>
             {isExpanded ? <ChevronUp size={18} className="text-muted-foreground" /> : <ChevronDown size={18} className="text-muted-foreground" />}
           </div>
         </div>
-        <div className="flex items-center justify-between w-full text-sm text-muted-foreground">
-          <span>{formatCurrency(loan.monto_original)}</span>
-          <span>{new Date(loan.fecha_inicio).toLocaleDateString()}</span>
+        
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 w-full text-sm">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Capital Prestado</span>
+            <span className="font-medium">{formatCurrency(loan.monto_original)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Interés Total</span>
+            <span className="font-medium">{isLoading ? '...' : formatCurrency(interesTotal)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Total a Devolver</span>
+            <span className="font-medium">{isLoading ? '...' : formatCurrency(totalADevolver)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Cuotas (Frecuencia)</span>
+            <span className="font-medium">{cantidadReal} ({loan.frecuencia_pago})</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Valor de Cuota</span>
+            <span className="font-medium">{isLoading ? '...' : formatCurrency(valorCuota)}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Fecha de Inicio</span>
+            <span className="font-medium">{new Date(loan.fecha_inicio).toLocaleDateString()}</span>
+          </div>
         </div>
-        <div className="w-full">
+
+        <div className="w-full mt-2">
           <div className="flex justify-between text-xs mb-1 text-muted-foreground">
-            <span>Progreso</span>
-            <span>{progress}%</span>
+            <span>Progreso de Pago</span>
+            <span>{progress}% — {isLoading ? '...' : `${cuotasPagadas}/${cantidadReal}`} cuotas</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-2">
             <div className="bg-primary rounded-full h-2 transition-all" style={{ width: `${progress}%` }} />
@@ -116,11 +149,6 @@ function LoanAccordionItem({ loan }: { loan: any }) {
   );
 }
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-
 export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -166,7 +194,7 @@ export default function ClientDetail() {
         telefono: editForm.telefono,
         direccion: editForm.direccion,
         notas: editForm.notas,
-        telegram_chat_id: editForm.telegram_chat_id
+        telegram_chat_id: editForm.telegram_chat_id || null
       }});
       setIsEditModalOpen(false);
     } catch (e) {
@@ -175,46 +203,69 @@ export default function ClientDetail() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
-      <button onClick={() => navigate('/clientes')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <div className="p-4 lg:p-6 space-y-4">
+      <button onClick={() => navigate('/clientes')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2">
         <ArrowLeft size={16} /> Volver
       </button>
 
-      {/* Header */}
-      <div className="bg-card rounded-lg border border-border p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">{client.name}</h2>
-            <span className={`text-sm ${statusColor(client.status)}`}>{statusLabel(client.status)}</span>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleEditClick}><Pencil size={14} className="mr-1" /> Editar</Button>
+      {/* Header Ficha Cliente */}
+      <div className="bg-card rounded-lg border border-border p-5 relative">
+        <Button variant="ghost" size="sm" onClick={handleEditClick} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+          <Pencil size={15} className="mr-2" /> Editar
+        </Button>
+        
+        <div className="flex flex-col">
+          <h2 className="text-2xl font-bold">{client.name}</h2>
+          <span className={`text-sm mt-1 w-fit px-2 py-0.5 rounded-full bg-secondary ${statusColor(client.status)}`}>{statusLabel(client.status)}</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-sm">
-          <div><span className="text-muted-foreground">Teléfono:</span> {client.phone}</div>
-          <div><span className="text-muted-foreground">DNI:</span> {client.dni}</div>
-          <div><span className="text-muted-foreground">Dirección:</span> {client.direccion || '-'}</div>
-          {client.telegram_chat_id && <div><span className="text-muted-foreground">Telegram Chat ID:</span> {client.telegram_chat_id}</div>}
-          {client.notas && <div className="sm:col-span-2"><span className="text-muted-foreground">Notas:</span> {client.notas}</div>}
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-5 text-sm">
+          <div><span className="block text-xs text-muted-foreground mb-1">DNI</span> {client.dni}</div>
+          <div><span className="block text-xs text-muted-foreground mb-1">Teléfono</span> {client.phone}</div>
+          
+          {client.telegram_chat_id && (
+            <div>
+              <span className="block text-xs text-muted-foreground mb-1 text-[#0088cc]">Telegram Chat ID</span> 
+              <span className="font-medium text-[#0088cc]">{client.telegram_chat_id}</span>
+            </div>
+          )}
+          
+          <div className="sm:col-span-2 md:col-span-full">
+            <span className="block text-xs text-muted-foreground mb-1">Dirección</span> {client.direccion || '-'}
+          </div>
+          
+          {client.notas && (
+            <div className="sm:col-span-2 md:col-span-full bg-secondary/50 p-3 rounded-md border border-border/50">
+              <span className="block text-xs text-muted-foreground mb-1">Notas</span> 
+              {client.notas}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Historial */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold">Historial de Préstamos</h3>
+      {/* Historial de Préstamos */}
+      <div className="pt-2">
+        <div className="flex flex-row items-end justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Historial de Préstamos</h3>
+            <p className={`text-xs mt-1 py-0.5 ${goodPayer ? 'status-green' : 'status-yellow'}`}>
+              {goodPayer ? '⭐ Buen comportamiento de pago' : '⚠️ Posee deudas y/o irregularidades'}
+            </p>
+          </div>
           <Button size="sm" onClick={() => navigate(`/nuevo-prestamo?clientId=${id}`)}>
-            <Plus size={16} className="mr-1" /> Nuevo Préstamo
+            <Plus size={16} className="mr-1" /> Préstamo
           </Button>
         </div>
-        <p className={`text-sm mb-3 ${goodPayer ? 'status-green' : 'status-yellow'}`}>
-          {goodPayer ? '⭐ Buen pagador' : '⚠️ Pagador irregular'}
-        </p>
 
         <div className="space-y-3">
           {clientLoans.map(loan => (
             <LoanAccordionItem key={loan.id} loan={loan} />
           ))}
-          {clientLoans.length === 0 && <p className="text-sm text-muted-foreground">No hay préstamos registrados.</p>}
+          {clientLoans.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-lg bg-card/30">
+              No hay préstamos registrados para este cliente.
+            </div>
+          )}
         </div>
       </div>
 
@@ -222,7 +273,7 @@ export default function ClientDetail() {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogTitle>Editar Perfil de Cliente</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
@@ -247,24 +298,25 @@ export default function ClientDetail() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Telegram Chat ID</Label>
+              <Label className="text-[#0088cc]">Telegram Chat ID</Label>
               <Input 
                 value={editForm.telegram_chat_id} 
                 onChange={e => setEditForm({...editForm, telegram_chat_id: e.target.value})} 
-                placeholder="Ej. 1694629692"
+                placeholder="Opcional. Ej: 1694629692"
               />
             </div>
             <div className="space-y-2">
-              <Label>Notas</Label>
+              <Label>Notas Generales</Label>
               <Textarea 
                 value={editForm.notas} 
                 onChange={e => setEditForm({...editForm, notas: e.target.value})} 
+                placeholder="Observaciones..."
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveEdit} disabled={isUpdating}>{isUpdating ? 'Guardando...' : 'Guardar'}</Button>
+            <Button onClick={handleSaveEdit} disabled={isUpdating}>{isUpdating ? 'Guardando...' : 'Guardar Cambios'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
