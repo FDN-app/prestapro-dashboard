@@ -116,6 +116,23 @@ export function usePrestamos() {
     }
   });
 
+  const extenderMutation = useMutation({
+    mutationFn: async ({ prestamo_id, interes_porcentaje }: { prestamo_id: string, interes_porcentaje: number }) => {
+      const { data, error } = await supabase.rpc('extender_prestamo', { p_prestamo_id: prestamo_id, p_interes_porcentaje: interes_porcentaje });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Préstamo extendido exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['prestamos'] });
+      queryClient.invalidateQueries({ queryKey: ['cuotas'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (error) => {
+      toast.error('Error al extender el préstamo: ' + error.message);
+    }
+  });
+
   return {
     ...query,
     prestamos: query.data || [],
@@ -127,5 +144,7 @@ export function usePrestamos() {
     isLiquidando: liquidarMutation.isPending,
     refinanciarPrestamo: refinanciarMutation.mutateAsync,
     isRefinanciando: refinanciarMutation.isPending,
+    extenderPrestamo: extenderMutation.mutateAsync,
+    isExtendiendo: extenderMutation.isPending,
   };
 }

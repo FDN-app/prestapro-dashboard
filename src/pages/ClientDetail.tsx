@@ -14,7 +14,11 @@ import { Textarea } from '@/components/ui/textarea';
 function LoanAccordionItem({ loan }: { loan: any }) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
-  const { cuotas, isLoading } = useCuotas(loan.id); // ALWAYS loaded to populate grid
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [extendInterest, setExtendInterest] = useState('0');
+  
+  const { cuotas, isLoading } = useCuotas(loan.id); 
+  const { extenderPrestamo, isExtendiendo } = usePrestamos();
   
   const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado';
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
@@ -105,46 +109,129 @@ function LoanAccordionItem({ loan }: { loan: any }) {
             <p className="text-sm text-muted-foreground">Cargando cuotas...</p>
           ) : cuotas.length > 0 ? (
             <div className="space-y-2">
-              {cuotas.map((cuota) => {
-                const requirePayment = cuota.estado === 'pendiente' || cuota.estado === 'parcial' || cuota.estado === 'vencida';
-                const style = getCuotaStatusStyles(cuota.estado, cuota.fecha_vencimiento);
-                
-                return (
-                  <div key={cuota.id} className="flex flex-wrap sm:flex-nowrap items-center justify-between p-3 rounded-lg border border-border bg-card gap-2">
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
-                        {cuota.numero_cuota}
+              {(() => {
+                let arrastre_acumulado = 0;
+                const sortedCuotas = [...cuotas].sort((a, b) => a.numero_cuota - b.numero_cuota);
+
+                return sortedCuotas.map((cuota, index) => {
+                  const actual_cuota = Number(cuota.monto_cuota);
+                  const cobrado = Number(cuota.monto_cobrado) || 0;
+                  const restante = Math.max(0, actual_cuota - cobrado);
+                  
+                  const arrastre_visual = arrastre_acumulado;
+                  const total_a_pagar = actual_cuota + arrastre_visual;
+                  
+                  // Todo lo que quede impago engrosa el próximo arrastre
+                  arrastre_acumulado += restante;
+
+                  const requirePayment = cuota.estado === 'pendiente' || cuota.estado === 'parcial' || cuota.estado === 'vencida';
+                  const style = getCuotaStatusStyles(cuota.estado, cuota.fecha_vencimiento);
+                  
+                  return (
+                    <div key={cuota.id} className={`flex flex-wrap sm:flex-nowrap items-center justify-between p-3 rounded-lg border ${arrastre_visual > 0 && requirePayment ? 'border-status-yellow/30 bg-status-yellow/5' : 'border-border bg-card'} gap-2`}>
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+                          {cuota.numero_cuota}
+                        </div>
+                        <div>
+                          {arrastre_visual > 0 && requirePayment ? (
+                             <div className="mb-1">
+                               <p className="text-xs text-muted-foreground line-through decoration-muted-foreground/50">Orig: {formatCurrency(actual_cuota)}</p>
+                               <div className="flex items-center gap-1">
+                                 <span className="text-[10px] bg-status-yellow text-status-yellow-foreground px-1.5 py-0.5 rounded font-bold">Arrastre: {formatCurrency(arrastre_visual)}</span>
+                               </div>
+                               <p className="text-sm font-bold text-foreground mt-0.5">{formatCurrency(total_a_pagar)}</p>
+                             </div>
+                          ) : (
+                             <p className="text-sm font-medium">{formatCurrency(actual_cuota)}</p>
+                          )}
+                          
+                          <p className="text-xs text-muted-foreground">Vence: {new Date(cuota.fecha_vencimiento).toLocaleDateString()}</p>
+                          
+                          {cuota.estado === 'parcial' && (
+                             <div className="flex items-center gap-2 mt-1 text-[11px] font-medium">
+                               <span className="text-status-green">Pagado: {formatCurrency(cobrado)}</span>
+                               <span className="text-status-red">Restante: {formatCurrency(restante)}</span>
+                             </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{formatCurrency(cuota.monto_cuota)}</p>
-                        <p className="text-xs text-muted-foreground">Vence: {new Date(cuota.fecha_vencimiento).toLocaleDateString()}</p>
+                      
+                      <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                        <span className={`text-xs px-2 py-1 rounded-full border w-fit ${style.classes}`}>
+                          {style.label}
+                        </span>
+                        {requirePayment && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+                            onClick={() => navigate(`/registrar-pago?prestamo=${loan.id}`)}
+                          >
+                            Registrar
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className={`text-xs px-2 py-1 rounded-full border ${style.classes}`}>
-                        {style.label}
-                      </span>
-                      {requirePayment && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                          onClick={() => navigate(`/registrar-pago?prestamo=${loan.id}&cuota=${cuota.id}`)}
-                        >
-                          Registrar
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
+              
+              {!isPagado && loan.saldo_pendiente > 0 && (
+                 <div className="pt-2 mt-2 border-t border-dashed border-border flex justify-end">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      className="text-xs"
+                      onClick={() => setIsExtendModalOpen(true)}
+                    >
+                      <Plus size={14} className="mr-1" /> Extender 1 cuota más
+                    </Button>
+                 </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No existen cuotas para este préstamo.</p>
           )}
         </div>
       )}
+
+      {/* Modal Extend Loan */}
+      <Dialog open={isExtendModalOpen} onOpenChange={setIsExtendModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Extender Préstamo</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Se agregará 1 cuota más respetando la frecuencia de este préstamo para cubrir el saldo pendiente actual de <strong>{formatCurrency(loan.saldo_pendiente)}</strong>.
+            </p>
+            <div className="space-y-2">
+              <Label>Añadir interés por refinanciación/mora (%)</Label>
+              <Input 
+                type="number"
+                value={extendInterest} 
+                onChange={e => setExtendInterest(e.target.value)} 
+                min="0"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">Por defecto es 0%. Si agregás interés, el saldo deudor total aumentará.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExtendModalOpen(false)}>Cancelar</Button>
+            <Button 
+              onClick={async () => {
+                await extenderPrestamo({ prestamo_id: loan.id, interes_porcentaje: Number(extendInterest) });
+                setIsExtendModalOpen(false);
+              }} 
+              disabled={isExtendiendo}
+            >
+              {isExtendiendo ? 'Extendiendo...' : 'Confirmar Extensión'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

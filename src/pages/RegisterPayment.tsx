@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
@@ -16,49 +16,38 @@ export default function RegisterPayment() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const preselectedLoan = params.get('prestamo') || '';
-  const preselectedCuota = params.get('cuota') || '';
 
   const { clientes, isLoading: loadingClientes } = useClientes();
   const { prestamos, isLoading: loadingPrestamos } = usePrestamos();
   const { registrarPago, isRegistrando } = usePagos();
 
-  // Find initial client if loan was auto-selected
   const initialClient = prestamos.find(p => p.id === preselectedLoan)?.cliente_id || '';
 
   const [clientId, setClientId] = useState(initialClient);
   const [loanId, setLoanId] = useState(preselectedLoan);
-  const [installmentId, setInstallmentId] = useState(preselectedCuota);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('efectivo');
   const [notes, setNotes] = useState('');
 
   const { cuotas, isLoading: loadingCuotas } = useCuotas(loanId);
 
-  const clientLoans = prestamos.filter(l => l.cliente_id === clientId && l.estado !== 'pagado' && l.estado !== 'liquidado');
+  const clientLoans = useMemo(() => prestamos.filter(l => l.cliente_id === clientId && l.estado !== 'pagado' && l.estado !== 'liquidado'), [prestamos, clientId]);
   
-  const pendingInstallments = cuotas.filter(i => i.estado === 'pendiente' || i.estado === 'parcial' || i.estado === 'vencida');
-  const selectedInst = pendingInstallments.find(i => i.id === installmentId);
-  const remainingAmount = selectedInst ? (selectedInst.monto_cuota - selectedInst.monto_cobrado) : 0;
+  const pendingInstallments = useMemo(() => cuotas.filter(i => i.estado === 'pendiente' || i.estado === 'parcial' || i.estado === 'vencida').sort((a, b) => a.numero_cuota - b.numero_cuota), [cuotas]);
   
+  const currentTotalPending = useMemo(() => pendingInstallments.reduce((sum, i) => sum + (i.monto_cuota - i.monto_cobrado), 0), [pendingInstallments]);
+
+  // Default to oldest unpaid installment or the total
+  const defaultAmount = pendingInstallments.length > 0 ? (pendingInstallments[0].monto_cuota - pendingInstallments[0].monto_cobrado) : 0;
+
   useEffect(() => {
-    if (installmentId && pendingInstallments.length > 0 && !amount) {
-      const inst = pendingInstallments.find(i => i.id === installmentId);
-      if (inst) setAmount((inst.monto_cuota - inst.monto_cobrado).toString());
+    if (pendingInstallments.length > 0 && !amount && loanId) {
+      setAmount(defaultAmount.toString());
     }
-  }, [installmentId, pendingInstallments, amount]);
-
-  const isPartial = amount && Number(amount) < remainingAmount;
-
-  const handleInstallmentSelect = (id: string) => {
-    setInstallmentId(id);
-    const inst = pendingInstallments.find(i => i.id === id);
-    if (inst) {
-      setAmount((inst.monto_cuota - inst.monto_cobrado).toString());
-    }
-  };
+  }, [pendingInstallments, amount, loanId, defaultAmount]);
 
   const handleConfirm = async () => {
-    if (!loanId || !installmentId || !amount || Number(amount) <= 0) {
+    if (!loanId || !amount || Number(amount) <= 0) {
       toast.error('Complete los campos obligatorios y un monto mayor a 0');
       return;
     }
@@ -66,7 +55,6 @@ export default function RegisterPayment() {
     try {
       await registrarPago({
         p_prestamo_id: loanId,
-        p_cuota_id: installmentId,
         p_monto: Number(amount),
         p_metodo: method,
         p_notas: notes
@@ -92,34 +80,47 @@ export default function RegisterPayment() {
       <div className="bg-card rounded-lg border border-border p-5 space-y-4 max-w-lg">
         <div className="space-y-2">
           <Label>Cliente *</Label>
-          <select value={clientId} onChange={e => { setClientId(e.target.value); setLoanId(''); setInstallmentId(''); }} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+          <select value={clientId} onChange={e => { setClientId(e.target.value); setLoanId(''); }} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
             <option value="">Seleccionar cliente</option>
             {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        
         <div className="space-y-2">
           <Label>Préstamo *</Label>
-          <select value={loanId} onChange={e => { setLoanId(e.target.value); setInstallmentId(''); }} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" disabled={!clientId}>
+          <select value={loanId} onChange={e => setLoanId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" disabled={!clientId}>
             <option value="">Seleccionar préstamo</option>
             {clientLoans.map(l => <option key={l.id} value={l.id}>[{new Date(l.fecha_inicio).toLocaleDateString()}] Saldo: {formatCurrency(l.saldo_pendiente)}</option>)}
           </select>
         </div>
+
+        {loanId && (
+          <div className="bg-secondary/30 p-3 rounded-lg border border-border/50 text-sm">
+            <h4 className="font-medium text-foreground mb-1">Próximos Vencimientos</h4>
+            {loadingCuotas ? 'Cargando cuotas...' : (
+              <ul className="space-y-1 mt-2 mb-2 text-muted-foreground divide-y divide-border/30">
+                {pendingInstallments.slice(0, 3).map(inst => (
+                  <li key={inst.id} className="py-1 flex justify-between">
+                    <span>Cuota #{inst.numero_cuota} ({inst.estado})</span>
+                    <span className="font-medium text-foreground">{formatCurrency(inst.monto_cuota - inst.monto_cobrado)}</span>
+                  </li>
+                ))}
+                {pendingInstallments.length > 3 && <li className="text-xs italic pt-1">+ {pendingInstallments.length - 3} cuotas impagas ocultas</li>}
+              </ul>
+            )}
+            <div className="mt-2 pt-2 border-t border-border/50 flex justify-between font-bold text-primary">
+              <span>Monto Total Adeudado</span>
+              <span>{formatCurrency(currentTotalPending)}</span>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
-          <Label>Cuota *</Label>
-          <select value={installmentId} onChange={e => handleInstallmentSelect(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" disabled={!loanId || loadingCuotas}>
-            <option value="">Seleccionar cuota pendiente</option>
-            {pendingInstallments.map(i => (
-              <option key={i.id} value={i.id}>
-                Cuota #{i.numero_cuota} — Resta {formatCurrency(i.monto_cuota - i.monto_cobrado)} ({i.estado})
-              </option>
-            ))}
-          </select>
+          <Label>Monto a Pagar ($) *</Label>
+          <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} disabled={!loanId} max={currentTotalPending} />
+          <p className="text-xs text-muted-foreground">Ojo: Los pagos se asignan automáticamente a las cuotas más viejas primero (Cascada).</p>
         </div>
-        <div className="space-y-2">
-          <Label>Monto ($) *</Label>
-          <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} disabled={!installmentId} max={remainingAmount} />
-          {isPartial && <p className="text-xs status-yellow">Pago parcial (Resta: {formatCurrency(remainingAmount - Number(amount))})</p>}
-        </div>
+
         <div className="space-y-2">
           <Label>Método de pago</Label>
           <select value={method} onChange={e => setMethod(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
@@ -128,12 +129,14 @@ export default function RegisterPayment() {
             <option value="otro">Otro</option>
           </select>
         </div>
+
         <div className="space-y-2">
           <Label>Notas</Label>
           <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas opcionales..." />
         </div>
-        <Button className="w-full bg-status-green hover:bg-status-green/90 text-white" onClick={handleConfirm} disabled={isRegistrando || !installmentId}>
-          {isRegistrando ? 'Procesando...' : 'Confirmar Pago'}
+
+        <Button className="w-full bg-status-green hover:bg-status-green/90 text-white" onClick={handleConfirm} disabled={isRegistrando || !loanId}>
+          {isRegistrando ? 'Procesando...' : 'Confirmar Pago en Cascada'}
         </Button>
       </div>
       )}

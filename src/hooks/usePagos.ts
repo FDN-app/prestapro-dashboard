@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 
 export interface RegistrarPagoPayload {
   p_prestamo_id: string;
-  p_cuota_id: string;
   p_monto: number;
   p_metodo: string;
   p_notas: string;
@@ -15,7 +14,7 @@ export function usePagos() {
 
   const createMutation = useMutation({
     mutationFn: async (payload: RegistrarPagoPayload) => {
-      const { data, error } = await supabase.rpc('registrar_pago', payload);
+      const { data, error } = await supabase.rpc('registrar_pago_cascada', payload);
       if (error) throw error;
       return data;
     },
