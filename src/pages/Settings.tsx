@@ -16,7 +16,8 @@ export default function SettingsPage() {
     dias_recordatorio: 2,
     telegram_bot_token: '',
     telegram_alertas_activas: false,
-    telegram_dias_recordatorio: 2
+    telegram_dias_recordatorio: 2,
+    telegram_chat_id: ''
   });
 
   const [testChatId, setTestChatId] = useState('');
@@ -31,7 +32,8 @@ export default function SettingsPage() {
         dias_recordatorio: settings.dias_recordatorio || 2,
         telegram_bot_token: settings.telegram_bot_token || '',
         telegram_alertas_activas: settings.telegram_alertas_activas || false,
-        telegram_dias_recordatorio: settings.telegram_dias_recordatorio || 2
+        telegram_dias_recordatorio: settings.telegram_dias_recordatorio || 2,
+        telegram_chat_id: settings.telegram_chat_id || ''
       });
     }
   }, [settings]);
@@ -43,8 +45,8 @@ export default function SettingsPage() {
   };
 
   const handleTestBot = async () => {
-    if (!testChatId) {
-      toast.error('Ingresa un Chat ID para recibir el test');
+    if (!form.telegram_chat_id) {
+      toast.error('Agrega un Chat ID en la configuración y guárdalo para enviar el test');
       return;
     }
     setIsTestingBot(true);
@@ -52,7 +54,7 @@ export default function SettingsPage() {
       // Llamar a nuestra Edge Function recién creada
       const { data, error } = await supabase.functions.invoke('enviar-telegram', {
         body: { 
-            chat_id: testChatId, 
+            chat_id: form.telegram_chat_id, 
             mensaje: '🟢 ¡Hola! Test de integración de Telegram Bot API mediante Edge Function exitoso.',
             tipo_mensaje: 'alerta_admin'
         }
@@ -152,15 +154,15 @@ export default function SettingsPage() {
           </div>
 
           <div className="pt-4 mt-4 border-t border-border">
-            <Label className="text-xs text-muted-foreground mb-2 block">Caja de Pruebas</Label>
+            <Label className="text-xs text-muted-foreground mb-2 block">ID de Chat de Telegram del Administrador</Label>
             <div className="flex items-center gap-2">
               <Input 
                 className="h-8 text-sm bg-background border-border"
-                placeholder="Tu Chat ID" 
-                value={testChatId} 
-                onChange={e => setTestChatId(e.target.value)} 
+                placeholder="Ej: 123456789" 
+                value={form.telegram_chat_id} 
+                onChange={e => setForm({...form, telegram_chat_id: e.target.value})} 
               />
-              <Button onClick={handleTestBot} disabled={isTestingBot} size="sm" variant="outline" className="text-[#0088cc] border-[#0088cc] hover:bg-[#0088cc] hover:text-white">
+              <Button onClick={handleTestBot} disabled={isTestingBot || !form.telegram_chat_id} size="sm" variant="outline" className="text-[#0088cc] border-[#0088cc] hover:bg-[#0088cc] hover:text-white">
                 {isTestingBot ? 'Enviando...' : 'Probar'}
               </Button>
             </div>

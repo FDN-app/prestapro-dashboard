@@ -12,6 +12,7 @@ export interface Settings {
   telegram_bot_token?: string;
   telegram_alertas_activas?: boolean;
   telegram_dias_recordatorio?: number;
+  telegram_chat_id?: string;
 }
 
 export function useSettings() {
