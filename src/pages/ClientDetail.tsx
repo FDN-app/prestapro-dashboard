@@ -121,8 +121,10 @@ function LoanAccordionItem({ loan }: { loan: any }) {
                   const arrastre_visual = arrastre_acumulado;
                   const total_a_pagar = actual_cuota + arrastre_visual;
                   
-                  // Todo lo que quede impago engrosa el próximo arrastre
-                  arrastre_acumulado += restante;
+                  // Arrastre solo acumula remanentes de pagos PARCIALES reales
+                  if (cuota.estado === 'parcial' && cobrado > 0) {
+                    arrastre_acumulado += restante;
+                  }
 
                   const requirePayment = cuota.estado === 'pendiente' || cuota.estado === 'parcial' || cuota.estado === 'vencida';
                   const style = getCuotaStatusStyles(cuota.estado, cuota.fecha_vencimiento);
@@ -265,7 +267,7 @@ export default function ClientDetail() {
 
   const handleEditClick = () => {
     setEditForm({
-      nombre_completo: client.nombre_completo || client.name || '',
+      nombre_completo: client.nombre_completo || '',
       telefono: client.telefono || client.phone || '',
       direccion: client.direccion || '',
       notas: client.notas || '',
@@ -309,7 +311,7 @@ export default function ClientDetail() {
             
             {/* Titulo y Estado */}
             <div>
-              <h2 className="text-2xl font-bold tracking-tight mb-1">{client.nombre_completo || client.name}</h2>
+              <h2 className="text-2xl font-bold tracking-tight mb-1">{client.nombre_completo}</h2>
               <div className="flex items-center gap-2">
                 <span className={`text-xs px-2.5 py-0.5 rounded-full shadow-sm font-medium ${statusColor(client.status)}`}>
                   {statusLabel(client.status)}

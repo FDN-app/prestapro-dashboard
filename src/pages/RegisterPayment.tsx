@@ -82,7 +82,7 @@ export default function RegisterPayment() {
           <Label>Cliente *</Label>
           <select value={clientId} onChange={e => { setClientId(e.target.value); setLoanId(''); }} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
             <option value="">Seleccionar cliente</option>
-            {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre_completo}</option>)}
           </select>
         </div>
         
