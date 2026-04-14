@@ -16,7 +16,7 @@ export default function RendicionesPanel() {
         if (!map.has(p.cobrador_id)) {
           map.set(p.cobrador_id, {
             id: p.cobrador_id,
-            nombre: p.cobrador?.nombre || p.cobrador?.email || 'Admin',
+            nombre: p.cobrador?.email || 'Admin',
             total: 0,
             pagos: []
           });

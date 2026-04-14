@@ -6,7 +6,7 @@ import { useState, useRef } from 'react';
 
 export default function Backup() {
   const { 
-    exportData, exportCSV, isExporting, 
+    exportData, exportProfessionalExcel, isExporting, 
     cloudBackups, isCloudLoading, triggerServerBackup, isTriggering,
     getDownloadUrl, processRestoreFile, executeRestore 
   } = useBackup();
@@ -43,7 +43,7 @@ export default function Backup() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
         {/* AUTOMATIC SERVER EXCEL BACKUPS */}
-        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start md:col-span-2 shadow-sm">
+        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-6 items-start md:col-span-2 shadow-sm">
           <div className="flex w-full justify-between items-start">
             <div className="flex gap-4">
               <div className="p-3 bg-primary/10 rounded-full text-primary">
@@ -62,7 +62,7 @@ export default function Backup() {
             </Button>
           </div>
 
-          <div className="w-full mt-4 bg-background border border-border rounded-md p-2">
+          <div className="w-full bg-background border border-border rounded-md p-2">
             {isCloudLoading ? (
               <p className="text-center text-sm p-4 text-muted-foreground">Sincronizando bucket...</p>
             ) : cloudBackups.length === 0 ? (
@@ -79,10 +79,21 @@ export default function Backup() {
               </div>
             )}
           </div>
+
+          <div className="w-full flex flex-col sm:flex-row gap-4 pt-4 border-t border-border/50">
+            <div className="flex-1">
+              <p className="text-sm font-semibold mb-1">Exportación Especial</p>
+              <p className="text-xs text-muted-foreground">Genera una planilla completa lista para trabajar, con hojas para Clientes, Préstamos, Cuotas y Pagos.</p>
+            </div>
+            <Button onClick={exportProfessionalExcel} disabled={isExporting} className="gap-2 bg-status-green hover:bg-status-green/90 text-white font-bold px-6">
+              <FileSpreadsheet size={18} />
+              {isExporting ? 'Generando...' : 'DESCARGAR PLANILLA INTEGRAL (EXCEL)'}
+            </Button>
+          </div>
         </div>
 
         {/* Export JSON Full */}
-        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start">
+        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start shadow-sm">
           <div className="p-3 bg-secondary rounded-full text-muted-foreground">
             <DownloadCloud size={24} />
           </div>
@@ -90,13 +101,13 @@ export default function Backup() {
             <h3 className="font-semibold text-lg">Respaldo Técnico (JSON Crudo)</h3>
             <p className="text-sm text-muted-foreground mt-1">Descarga un volcado completo ideal para migraciones técnicas opcionales.</p>
           </div>
-          <Button onClick={exportData} disabled={isExporting} variant="secondary" className="mt-auto w-full md:w-auto">
+          <Button onClick={exportData} disabled={isExporting} variant="secondary" className="mt-auto w-full">
             Descargar Crudo JSON
           </Button>
         </div>
 
         {/* RESTAURACION Y CARGA */}
-        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start">
+        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start shadow-sm">
           <div className="p-3 bg-status-red/10 rounded-full text-status-red">
             <HardDriveUpload size={24} />
           </div>

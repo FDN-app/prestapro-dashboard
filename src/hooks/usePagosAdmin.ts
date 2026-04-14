@@ -42,7 +42,6 @@ export function usePagosAdmin() {
           ),
           cobrador:perfiles!cobrador_id (
             email,
-            nombre,
             comision_porcentaje
           )
         `)
