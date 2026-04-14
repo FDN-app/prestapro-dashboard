@@ -41,10 +41,10 @@ export default function RegisterPayment() {
   const defaultAmount = pendingInstallments.length > 0 ? (pendingInstallments[0].monto_cuota - pendingInstallments[0].monto_cobrado) : 0;
 
   useEffect(() => {
-    if (pendingInstallments.length > 0 && !amount && loanId) {
+    if (pendingInstallments.length > 0 && loanId) {
       setAmount(defaultAmount.toString());
     }
-  }, [pendingInstallments, amount, loanId, defaultAmount]);
+  }, [loanId, defaultAmount]); // Only trigger when loanId changes, not when amount is cleared
 
   const handleConfirm = async () => {
     if (!loanId || !amount || Number(amount) <= 0) {
@@ -117,7 +117,14 @@ export default function RegisterPayment() {
 
         <div className="space-y-2">
           <Label>Monto a Pagar ($) *</Label>
-          <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} disabled={!loanId} max={currentTotalPending} />
+          <Input 
+            type="number" 
+            value={amount} 
+            onChange={e => setAmount(e.target.value)} 
+            disabled={!loanId} 
+            max={currentTotalPending} 
+            placeholder="0"
+          />
           <p className="text-xs text-muted-foreground">Ojo: Los pagos se asignan automáticamente a las cuotas más viejas primero (Cascada).</p>
         </div>
 
