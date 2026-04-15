@@ -105,4 +105,14 @@
   .bg-status-red-soft {
     background-color: hsl(0 84% 60% / 0.1);
   }
+  /* Agregamos las clases originales que el componente está buscando */
+  .bg-status-green\/10 {
+    background-color: hsl(160 84% 39% / 0.1);
+  }
+  .bg-status-yellow\/10 {
+    background-color: hsl(38 92% 50% / 0.1);
+  }
+  .bg-status-red\/10 {
+    background-color: hsl(0 84% 60% / 0.1);
+  }
 }
