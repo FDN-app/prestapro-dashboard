@@ -179,15 +179,15 @@ function LoanAccordionItem({ loan }: { loan: any }) {
                 });
               })()}
               
-              {!isPagado && loan.saldo_pendiente > 0 && (
+              {!isPagado && loan.saldo_pendiente > 0 && cuotas.every(c => c.estado !== 'pendiente') && (
                  <div className="pt-2 mt-2 border-t border-dashed border-border flex justify-end">
                     <Button 
                       size="sm" 
                       variant="secondary"
-                      className="text-xs"
+                      className="text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all"
                       onClick={() => setIsExtendModalOpen(true)}
                     >
-                      <Plus size={14} className="mr-1" /> Extender 1 cuota más
+                      <Plus size={14} className="mr-1" /> Refinanciar / Extender saldo
                     </Button>
                  </div>
               )}
@@ -368,12 +368,12 @@ export default function ClientDetail() {
         </div>
 
         {/* Notas (si existen) */}
-        {client.notas && (
-          <div className="mt-4 bg-muted/50 p-3 rounded-lg border border-border/50 text-sm relative z-10">
-            <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Notas</span> 
-            <p className="text-muted-foreground italic leading-relaxed">{client.notas}</p>
-          </div>
-        )}
+        <div className="mt-4 bg-muted/50 p-3 rounded-lg border border-border/50 text-sm relative z-10">
+          <span className="block text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Observaciones / Notas</span> 
+          <p className="text-muted-foreground italic leading-relaxed">
+            {client.notas || 'Sin descripción adicional para este cliente.'}
+          </p>
+        </div>
       </div>
 
       {/* Historial de Préstamos */}
