@@ -6,7 +6,7 @@ export interface Perfil {
   id: string;
   email: string;
   rol: 'admin' | 'cobrador';
-  nombre?: string;
+  nombre_completo?: string;
   comision_porcentaje?: number;
   creado_en: string;
 }
@@ -61,7 +61,7 @@ export function useCobradores() {
         options: {
           data: {
             rol: 'cobrador',
-            nombre: nombre,
+            nombre_completo: nombre,
             comision_porcentaje: comision
           }
         }

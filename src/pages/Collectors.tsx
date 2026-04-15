@@ -65,8 +65,8 @@ export default function Collectors() {
                   <td className="p-4 font-bold text-foreground">
                     <input 
                       type="text" 
-                      defaultValue={c.email}
-                      onBlur={(e) => updateCobrador({ id: c.id, updates: { email: e.target.value } })}
+                      defaultValue={c.nombre_completo || 'Sin Nombre'}
+                      onBlur={(e) => updateCobrador({ id: c.id, updates: { nombre_completo: e.target.value } })}
                       className="bg-transparent border-none outline-none w-full hover:bg-muted/30 focus:bg-muted p-1 rounded"
                       placeholder="Sin Nombre"
                     />
