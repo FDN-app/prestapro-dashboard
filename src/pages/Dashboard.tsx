@@ -8,6 +8,9 @@ import { useCashbox } from '@/hooks/useCashbox';
 import CobrosPeriodo from '@/components/dashboard/CobrosPeriodo';
 import RendicionesPanel from '@/components/dashboard/RendicionesPanel';
 import GananciasReporte from '@/components/dashboard/GananciasReporte';
+import { useSuscripcion } from '@/hooks/useSuscripcion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, CreditCard } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -17,8 +20,9 @@ export default function Dashboard() {
   const { movimientos, isLoading: loadingCapital } = useCapital();
   const { prestamos, isLoading: loadingPrestamos } = usePrestamos();
   const { totalEnCaja, isLoading: loadingCashbox } = useCashbox();
+  const { suscripcion, isLoading: loadingSuscripcion } = useSuscripcion();
 
-  const loading = loadingClientes || loadingCapital || loadingPrestamos || loadingCashbox;
+  const loading = loadingClientes || loadingCapital || loadingPrestamos || loadingCashbox || loadingSuscripcion;
 
   // Calculamos el semáforo en base a los clientes
   const semaphoreStats = useMemo(() => {
@@ -69,6 +73,25 @@ export default function Dashboard() {
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <h2 className="text-xl font-bold">Dashboard</h2>
+
+      {!loading && suscripcion && suscripcion.estado !== 'activo' && (
+        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 animate-in fade-in slide-in-from-top-4 duration-500">
+          <AlertTriangle className="h-5 w-5" />
+          <AlertTitle className="font-bold">Suscripción Inactiva</AlertTitle>
+          <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <span>Tu acceso a las funciones completas está restringido. Por favor, regulariza tu pago.</span>
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              className="w-full sm:w-auto font-bold"
+              onClick={() => navigate('/suscripcion')}
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              Ver Suscripción
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {loading ? (
         <div className="text-muted-foreground animate-pulse p-4 text-center">Cargando métricas...</div>

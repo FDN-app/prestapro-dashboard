@@ -28,13 +28,23 @@ export function useCapital() {
             email
           )
         `)
-        .order('fecha', { ascending: false });
+        .order('fecha', { ascending: false })
+        .limit(100); // Limitamos a los últimos 100 para no saturar el cliente
 
       if (error) {
         toast.error('Error al cargar flujo de capital');
         throw error;
       }
       return data as CapitalMovimiento[];
+    }
+  });
+
+  const { data: totals, isLoading: loadingTotals } = useQuery({
+    queryKey: ['capital-totals'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('obtener_resumen_capital');
+      if (error) throw error;
+      return data;
     }
   });
 
@@ -61,6 +71,8 @@ export function useCapital() {
   return {
     ...query,
     movimientos: query.data || [],
+    totals,
+    loadingTotals,
     registrarMovimiento: registrarMovimiento.mutateAsync,
     isRegistering: registrarMovimiento.isPending
   };

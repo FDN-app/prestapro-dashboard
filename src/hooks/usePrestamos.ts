@@ -117,19 +117,43 @@ export function usePrestamos() {
   });
 
   const extenderMutation = useMutation({
-    mutationFn: async ({ prestamo_id, interes_porcentaje }: { prestamo_id: string, interes_porcentaje: number }) => {
-      const { data, error } = await supabase.rpc('extender_prestamo', { p_prestamo_id: prestamo_id, p_interes_porcentaje: interes_porcentaje });
+    mutationFn: async ({ prestamo_id, nueva_tasa, nuevas_cuotas, frecuencia_pago, frecuencia_dias }: any) => {
+      const { data, error } = await supabase.rpc('extender_prestamo', { 
+        p_prestamo_id: prestamo_id, 
+        p_nueva_tasa: nueva_tasa,
+        p_nuevas_cuotas: nuevas_cuotas,
+        p_frecuencia_pago: frecuencia_pago,
+        p_frecuencia_dias: frecuencia_dias
+      });
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      toast.success('Préstamo extendido exitosamente');
+      toast.success('Préstamo refinanciado exitosamente');
       queryClient.invalidateQueries({ queryKey: ['prestamos'] });
-      queryClient.invalidateQueries({ queryKey: ['cuotas'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
     },
     onError: (error) => {
-      toast.error('Error al extender el préstamo: ' + error.message);
+      toast.error('Error al refinanciar: ' + error.message);
+    }
+  });
+
+  const diferirCuotaMutation = useMutation({
+    mutationFn: async ({ cuota_id, dias_atraso }: { cuota_id: string, dias_atraso: number }) => {
+      const { data, error } = await supabase.rpc('diferir_vencimiento_cuota', { 
+        p_cuota_id: cuota_id, 
+        p_dias_atraso: dias_atraso 
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Cronograma actualizado');
+      queryClient.invalidateQueries({ queryKey: ['prestamos'] });
+      queryClient.invalidateQueries({ queryKey: ['cuotas'] });
+    },
+    onError: (error) => {
+      toast.error('Error al diferir cuota: ' + error.message);
     }
   });
 
@@ -146,5 +170,7 @@ export function usePrestamos() {
     isRefinanciando: refinanciarMutation.isPending,
     extenderPrestamo: extenderMutation.mutateAsync,
     isExtendiendo: extenderMutation.isPending,
+    diferirCuota: diferirCuotaMutation.mutateAsync,
+    isDiriendo: diferirCuotaMutation.isPending,
   };
 }

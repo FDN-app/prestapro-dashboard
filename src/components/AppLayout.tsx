@@ -3,7 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import {
-  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity
+  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity, CreditCard
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -16,12 +16,14 @@ const adminNav = [
   { label: 'Flujo de Capital', icon: Activity, path: '/capital' },
   { label: 'Auditoría', icon: ClipboardList, path: '/auditoria' },
   { label: 'Backups', icon: DatabaseBackup, path: '/backups' },
+  { label: 'Suscripción', icon: CreditCard, path: '/suscripcion' },
   { label: 'Configuración', icon: Settings, path: '/configuracion' },
 ];
 
 const collectorNav = [
   { label: 'Cobros Pendientes', icon: List, path: '/cobros-pendientes' },
   { label: 'Registrar Pago', icon: Banknote, path: '/registrar-pago' },
+  { label: 'Suscripción', icon: CreditCard, path: '/suscripcion' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

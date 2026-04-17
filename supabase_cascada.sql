@@ -8,18 +8,25 @@ DECLARE
     v_pago_id UUID;
     v_monto_restante DECIMAL := p_monto;
     v_cuota RECORD;
-    v_a_cubrir DECIMAL;
-    v_cubierto DECIMAL;
+    v_a_cubrir_capital DECIMAL;
+    v_a_cubrir_mora DECIMAL;
+    v_cubierto_mora DECIMAL;
+    v_cubierto_capital DECIMAL;
     v_nuevo_estado_cuota TEXT;
     v_saldo_pendiente DECIMAL;
     v_nuevo_estado_prestamo TEXT;
 BEGIN
-    -- 1. Insertar el pago físicamente apuntando al préstamo (dejamos cuota_id nulo o apuntando a la primera impaga)
-    -- Para mantener el esquema, buscaremos la primera cuota impaga para asociar el registro de pago a ella funcionalmente.
-    -- Opcional: El registro de pago principal
-    
+    -- 1. Validación de TEST-04: El monto no puede superar el saldo pendiente total
+    SELECT saldo_pendiente INTO v_saldo_pendiente
+    FROM prestamos WHERE id = p_prestamo_id FOR UPDATE;
+
+    IF p_monto > v_saldo_pendiente THEN
+        RAISE EXCEPTION 'El monto del pago ($%) supera el saldo pendiente del préstamo ($%). Operación rechazada.', p_monto, v_saldo_pendiente;
+    END IF;
+
+    -- 2. Loop de distribución en cascada
     FOR v_cuota IN 
-        SELECT id, monto_cuota, monto_cobrado, estado 
+        SELECT id, monto_cuota, monto_cobrado, monto_mora, estado 
         FROM cuotas 
         WHERE prestamo_id = p_prestamo_id 
           AND estado IN ('pendiente', 'parcial', 'vencida')
@@ -29,47 +36,54 @@ BEGIN
             EXIT;
         END IF;
 
-        v_a_cubrir := v_cuota.monto_cuota - v_cuota.monto_cobrado;
+        -- Fase A: Cubrir Mora (TEST-02)
+        v_cubierto_mora := 0;
+        v_a_cubrir_mora := v_cuota.monto_mora;
         
-        IF v_monto_restante >= v_a_cubrir THEN
-            -- Se cubre completa
-            v_cubierto := v_a_cubrir;
-            v_nuevo_estado_cuota := 'pagada';
-        ELSE
-            -- Se cubre parcialmente
-            v_cubierto := v_monto_restante;
-            v_nuevo_estado_cuota := 'parcial';
+        IF v_a_cubrir_mora > 0 THEN
+            IF v_monto_restante >= v_a_cubrir_mora THEN
+                v_cubierto_mora := v_a_cubrir_mora;
+                v_monto_restante := v_monto_restante - v_cubierto_mora;
+            ELSE
+                v_cubierto_mora := v_monto_restante;
+                v_monto_restante := 0;
+            END IF;
+            
+            UPDATE cuotas SET monto_mora = monto_mora - v_cubierto_mora WHERE id = v_cuota.id;
         END IF;
 
-        -- Aplicamos el remanente a esta cuota
-        UPDATE cuotas
-        SET monto_cobrado = monto_cobrado + v_cubierto,
-            estado = v_nuevo_estado_cuota,
-            -- Si ya era pagada (no debería por el select), no tocamos fecha. Si apenas se paga, now()
-            fecha_pago = CASE WHEN v_nuevo_estado_cuota = 'pagada' THEN now() ELSE fecha_pago END
-        WHERE id = v_cuota.id;
+        -- Fase B: Cubrir Capital
+        v_cubierto_capital := 0;
+        IF v_monto_restante > 0 THEN
+            v_a_cubrir_capital := v_cuota.monto_cuota - v_cuota.monto_cobrado;
+            
+            IF v_monto_restante >= v_a_cubrir_capital THEN
+                v_cubierto_capital := v_a_cubrir_capital;
+                v_nuevo_estado_cuota := 'pagada';
+                v_monto_restante := v_monto_restante - v_cubierto_capital;
+            ELSE
+                v_cubierto_capital := v_monto_restante;
+                v_nuevo_estado_cuota := 'parcial';
+                v_monto_restante := 0;
+            END IF;
 
-        -- Asociamos un registro físico de pago a cada cuota cubierta para que concuerde todo en pagos (división automática)
-        INSERT INTO pagos (cuota_id, prestamo_id, cobrador_id, monto_pagado, metodo_pago, notas, destino_caja)
-        VALUES (v_cuota.id, p_prestamo_id, auth.uid(), v_cubierto, p_metodo, p_notas, 'en_caja')
-        RETURNING id INTO v_pago_id;
+            UPDATE cuotas
+            SET monto_cobrado = monto_cobrado + v_cubierto_capital,
+                estado = v_nuevo_estado_cuota,
+                fecha_pago = CASE WHEN v_nuevo_estado_cuota = 'pagada' THEN now() ELSE fecha_pago END
+            WHERE id = v_cuota.id;
+        END IF;
 
-        v_monto_restante := v_monto_restante - v_cubierto;
+        -- 3. Registro del pago físico en la tabla pagos (Mora + Capital)
+        IF (v_cubierto_mora + v_cubierto_capital) > 0 THEN
+            INSERT INTO pagos (cuota_id, prestamo_id, cobrador_id, monto_pagado, metodo_pago, notas, destino_caja)
+            VALUES (v_cuota.id, p_prestamo_id, auth.uid(), (v_cubierto_mora + v_cubierto_capital), p_metodo, p_notas, 'en_caja')
+            RETURNING id INTO v_pago_id;
+        END IF;
     END LOOP;
 
-    -- Si sobró plata y el cliente pagó de más:
-    IF v_monto_restante > 0 THEN
-        -- Aplicar el exceso al préstamo entero as a favor o simplemente registrarlo asociado al último pago.
-        -- Como no tenemos "cuota a favor", lo sumamos a la última cuota pagada como exceso para balancear.
-        -- O se asume que no pagan más que el saldo.
-        NULL;
-    END IF;
-
-    -- 3. Actualizar el préstamo global
-    SELECT saldo_pendiente INTO v_saldo_pendiente
-    FROM prestamos WHERE id = p_prestamo_id FOR UPDATE;
-
-    v_saldo_pendiente := GREATEST(v_saldo_pendiente - p_monto, 0);
+    -- 4. Actualizar el préstamo global
+    v_saldo_pendiente := v_saldo_pendiente - p_monto;
     
     IF v_saldo_pendiente <= 0 THEN
         v_nuevo_estado_prestamo := 'pagado';
@@ -89,6 +103,7 @@ BEGIN
 
     RETURN v_pago_id;
 END;
+
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION extender_prestamo(

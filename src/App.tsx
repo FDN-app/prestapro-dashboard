@@ -18,7 +18,8 @@ import CapitalFlow from "./pages/CapitalFlow";
 import SettingsPage from "./pages/Settings";
 import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
-import NotFound from "./pages/NotFound";
+import Subscriptions from "./pages/Subscriptions";
+import NotFound from "./NotFound";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/configuracion" element={<AppLayout><SettingsPage /></AppLayout>} />
             <Route path="/backups" element={<AppLayout><Backup /></AppLayout>} />
             <Route path="/cobros-pendientes" element={<AppLayout><CollectorPending /></AppLayout>} />
+            <Route path="/suscripcion" element={<AppLayout><Subscriptions /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

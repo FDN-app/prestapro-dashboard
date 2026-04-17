@@ -52,7 +52,7 @@ export function useBackup() {
     }
   };
 
-  const processRestoreFile = async (file: File) => {
+  const processRestoreFile = async (file: File): Promise<Record<string, any[]>> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -60,14 +60,18 @@ export function useBackup() {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           
-          const summary: Record<string, number> = {};
-          workbook.SheetNames.forEach(sheetName => {
+          const result: Record<string, any[]> = {};
+          const expectedSheets = ['Clientes', 'Préstamos', 'Cuotas', 'Pagos'];
+          
+          expectedSheets.forEach(sheetName => {
             const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
-            summary[sheetName] = json.length;
+            if (!worksheet) {
+              throw new Error(`La hoja "${sheetName}" es obligatoria y no se encontró en el archivo.`);
+            }
+            result[sheetName] = XLSX.utils.sheet_to_json(worksheet);
           });
           
-          resolve(summary);
+          resolve(result);
         } catch (err) {
           reject(err);
         }
@@ -77,11 +81,39 @@ export function useBackup() {
     });
   };
 
-  const executeRestore = async () => {
-    toast.success('Fase de Restauración inicializada.', {
-      description: 'El volcado asicrónico de los registros puede tomar unos minutos.'
+  const executeRestore = async (file: File) => {
+    const loadingId = toast.loading('Iniciando restauración crítica...', {
+      description: 'Validando integridad referencial...'
     });
+    
+    try {
+      // 1. Parsear y obtener datos del Excel
+      const data = await processRestoreFile(file);
+
+      // 2. Llamada RPC atómica al motor de base de datos
+      const { error } = await supabase.rpc('restaurar_ecosistema_completo', {
+        p_clientes: data['Clientes'],
+        p_prestamos: data['Préstamos'],
+        p_cuotas: data['Cuotas'],
+        p_pagos: data['Pagos']
+      });
+
+      if (error) throw new Error(error.message);
+
+      toast.success('Restauración exitosa', {
+        id: loadingId,
+        description: 'El sistema ha sido restablecido al estado del backup.'
+      });
+      
+      queryClient.invalidateQueries();
+    } catch (e: any) {
+      toast.error('Fallo en la restauración', {
+        id: loadingId,
+        description: e.message
+      });
+    }
   };
+
 
   const exportData = async () => {
     setIsExporting(true);
@@ -126,12 +158,16 @@ export function useBackup() {
         { data: clientes },
         { data: prestamos },
         { data: cuotas },
-        { data: pagos }
+        { data: pagos },
+        { data: capital },
+        { data: auditoria }
       ] = await Promise.all([
         supabase.from('clientes').select('nombre_completo, dni, telefono, direccion, estado, creado_en').order('nombre_completo'),
         supabase.from('prestamos').select('id, cliente_id, clientes(nombre_completo), monto_original, tasa_interes, cantidad_cuotas, frecuencia_pago, fecha_inicio, estado').order('fecha_inicio'),
         supabase.from('cuotas').select('id, prestamo_id, prestamos(clientes(nombre_completo)), numero_cuota, monto_cuota, fecha_vencimiento, estado, monto_cobrado, fecha_pago').order('fecha_vencimiento'),
-        supabase.from('pagos').select('id, prestamo_id, cuota_id, prestamos(clientes(nombre_completo)), fecha_pago, monto_pagado, cobrador:perfiles(email)').order('fecha_pago')
+        supabase.from('pagos').select('id, prestamo_id, cuota_id, prestamos(clientes(nombre_completo)), fecha_pago, monto_pagado, cobrador:perfiles(email)').order('fecha_pago'),
+        supabase.from('capital').select('fecha, tipo, monto, descripcion').order('fecha', { ascending: false }),
+        supabase.from('auditoria').select('created_at, usuario:perfiles(email), tabla_afectada, accion, detalle').order('created_at', { ascending: false })
       ]);
 
       const clientsSheet = clientes?.map(c => ({
@@ -169,11 +205,23 @@ export function useBackup() {
         'Fecha Pago': c.fecha_pago ? new Date(c.fecha_pago).toLocaleDateString() : '-'
       })) || [];
 
-      const paymentsSheet = pagos?.map(p => ({
-        'Cliente': (p.prestamos as any)?.clientes?.nombre_completo || 'N/A',
-        'Fecha': new Date(p.fecha_pago).toLocaleString(),
         'Monto': Number(p.monto_pagado),
         'Registrado Por': (p.cobrador as any)?.email || 'Admin'
+      })) || [];
+
+      const capitalSheet = capital?.map(c => ({
+        'Fecha': new Date(c.fecha).toLocaleString(),
+        'Tipo': c.tipo,
+        'Monto': Number(c.monto),
+        'Descripción': c.descripcion || '-'
+      })) || [];
+
+      const auditSheet = auditoria?.map(a => ({
+        'Fecha': new Date(a.created_at).toLocaleString(),
+        'Usuario': (a.usuario as any)?.email || 'Sistema',
+        'Módulo': a.tabla_afectada,
+        'Acción': a.accion,
+        'Detalle': a.detalle
       })) || [];
 
       const wb = XLSX.utils.book_new();
@@ -191,6 +239,8 @@ export function useBackup() {
       addSheet(loansSheet, 'Préstamos');
       addSheet(installmentsSheet, 'Cuotas');
       addSheet(paymentsSheet, 'Pagos');
+      addSheet(capitalSheet, 'Flujo Capital');
+      addSheet(auditSheet, 'Auditoría');
 
       XLSX.writeFile(wb, `Planilla_PrestaPro_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Excel profesional exportado');
