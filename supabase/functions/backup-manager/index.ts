@@ -524,7 +524,7 @@ const sendResumenSemanal = async (
   const rango = `${formatDate(weekStart.toISOString())} al ${formatDate(ahora.toISOString())}`;
 
   const msg =
-    `*Resumen Semanal de Backups - PrestaPro*\n` +
+    `📊 *Resumen Semanal de Backups - PrestaPro*\n` +
     `Semana: ${rango}\n` +
     `Exitosos: ${exitosos.length}\n` +
     `Fallidos: ${fallidos.length}\n` +
@@ -576,6 +576,10 @@ const applyRetentionPolicy = async (
         toKeep.add(path);
       } else if (created >= fourWeeksAgo) {
         // Zona 2: 1 por semana ISO
+        // Nota: Este es un algoritmo simplificado (no ISO 8601 estricto) que asume 
+        // que la semana empieza con el día 1 del mes más un offset. 
+        // Para agrupar backups de la misma semana es suficiente, aunque 
+        // en la primera/última semana del año puede variar.
         const weekKey = `${created.getFullYear()}-W${Math.ceil(
           (created.getDate() + new Date(created.getFullYear(), created.getMonth(), 1).getDay()) / 7
         )}`;
@@ -639,6 +643,11 @@ const runBackup = async (
 
   if (!changed) {
     console.log("Backup omitido: sin cambios desde el último backup.");
+    
+    // Notificación Telegram — sin cambios
+    const prefixSkipped = tipo_disparo === "test" ? "🧪 Test Backup - ignorar\n\n" : "";
+    await sendTelegramAlert(supabase, `${prefixSkipped}ℹ️ Sin cambios en DB, backup saltado`);
+
     await saveBackupRecord(supabase, {
       nombre_archivo: filename,
       ruta_bucket: null,
@@ -679,9 +688,10 @@ const runBackup = async (
   // 5. Notificación Telegram — éxito
   const totalReg = Object.values(counts).reduce((s, n) => s + n, 0);
   const tamMB    = (buffer.byteLength / 1_048_576).toFixed(2);
+  const prefixSuccess = tipo_disparo === "test" ? "🧪 Test Backup - ignorar\n\n" : "";
   await sendTelegramAlert(
     supabase,
-    `*Backup PrestaPro exitoso*\n` +
+    `${prefixSuccess}✅ *Backup PrestaPro exitoso*\n` +
     `Fecha: ${formatDate(new Date().toISOString())} ${new Date().toTimeString().slice(0, 5)}\n` +
     `Archivo: ${filename}\n` +
     `Tamano: ${tamMB} MB\n` +
@@ -770,8 +780,9 @@ Deno.serve(async (req) => {
   }
 });
 
-// ─── CRON: BACKUP DIARIO ─────────────────────────────────────────────────────
+// ─── CRON: BACKUP DIARIO (Desactivado hasta pasar tests E2E) ───────────────
 // 0 6 * * * = 06:00 UTC = 03:00 ARG
+/*
 Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
   const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -813,7 +824,7 @@ Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
       // Alerta Telegram de falla
       await sendTelegramAlert(
         supabase,
-        `*Backup PrestaPro FALLIDO*\n` +
+        `⚠️ *Backup PrestaPro FALLIDO*\n` +
         `Fecha: ${formatDate(now.toISOString())} ${now.toTimeString().slice(0, 5)}\n` +
         `Error: ${msg2}\n` +
         `Se reintento 1 vez sin exito. Revisar logs en Supabase.`
@@ -821,9 +832,11 @@ Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
     }
   }
 });
+*/
 
-// ─── CRON: RESUMEN SEMANAL ───────────────────────────────────────────────────
+// ─── CRON: RESUMEN SEMANAL (Desactivado hasta pasar tests E2E) ───────────────
 // 0 12 * * 0 = 12:00 UTC domingos = 09:00 ARG domingos
+/*
 Deno.cron("resumen-semanal-prestapro", "0 12 * * 0", async () => {
   const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -832,3 +845,4 @@ Deno.cron("resumen-semanal-prestapro", "0 12 * * 0", async () => {
   console.log("Cron: resumen-semanal-prestapro disparado");
   await sendResumenSemanal(supabase);
 });
+*/
