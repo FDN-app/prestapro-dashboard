@@ -467,6 +467,74 @@ const saveBackupRecord = async (
   if (error) console.error("saveBackupRecord failed:", error.message);
 };
 
+// ─── NOTIFICACIONES TELEGRAM ──────────────────────────────────────────────────
+
+const sendTelegramAlert = async (
+  supabase: ReturnType<typeof createClient>,
+  mensaje: string
+): Promise<void> => {
+  try {
+    const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
+    if (!token) { console.warn("TELEGRAM_BOT_TOKEN no configurado"); return; }
+
+    const { data: settings } = await supabase
+      .from("settings_empresa")
+      .select("telegram_chat_id, telegram_alertas_activas")
+      .single();
+
+    if (!settings?.telegram_alertas_activas || !settings?.telegram_chat_id) return;
+
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: settings.telegram_chat_id,
+        text: mensaje,
+        parse_mode: "Markdown",
+      }),
+    });
+  } catch (e) {
+    console.error("sendTelegramAlert failed:", e instanceof Error ? e.message : String(e));
+  }
+};
+
+const sendResumenSemanal = async (
+  supabase: ReturnType<typeof createClient>
+): Promise<void> => {
+  const ahora = new Date();
+  const hace7 = new Date(ahora); hace7.setDate(ahora.getDate() - 7);
+
+  const { data: backups } = await supabase
+    .from("backup_history")
+    .select("estado, fecha_backup, tamano_bytes")
+    .gte("fecha_backup", hace7.toISOString())
+    .neq("estado", "skipped_no_changes")
+    .order("fecha_backup", { ascending: false });
+
+  // deno-lint-ignore no-explicit-any
+  const exitosos  = (backups ?? []).filter((b: any) => b.estado === "success");
+  // deno-lint-ignore no-explicit-any
+  const fallidos  = (backups ?? []).filter((b: any) => b.estado === "failed");
+  // deno-lint-ignore no-explicit-any
+  const espacioMB = exitosos.reduce((s: number, b: any) => s + Number(b.tamano_bytes ?? 0), 0) / 1_048_576;
+  // deno-lint-ignore no-explicit-any
+  const ultimo    = exitosos[0]?.fecha_backup ? formatDate((exitosos[0] as any).fecha_backup) : "N/A";
+
+  const weekStart = new Date(ahora); weekStart.setDate(ahora.getDate() - 6);
+  const rango = `${formatDate(weekStart.toISOString())} al ${formatDate(ahora.toISOString())}`;
+
+  const msg =
+    `*Resumen Semanal de Backups - PrestaPro*\n` +
+    `Semana: ${rango}\n` +
+    `Exitosos: ${exitosos.length}\n` +
+    `Fallidos: ${fallidos.length}\n` +
+    `Espacio total: ${espacioMB.toFixed(1)} MB (${exitosos.length} archivos)\n` +
+    `Ultimo backup: ${ultimo}`;
+
+  await sendTelegramAlert(supabase, msg);
+  console.log("Resumen semanal enviado por Telegram.");
+};
+
 // ─── POLÍTICA DE RETENCIÓN ESCALONADA ───────────────────────────────────────
 
 const applyRetentionPolicy = async (
@@ -608,7 +676,20 @@ const runBackup = async (
 
   console.log(`Backup exitoso: ${filename} (${buffer.byteLength} bytes, ${duracion_ms}ms)`);
 
-  // 5. Política de retención (no bloquea si falla)
+  // 5. Notificación Telegram — éxito
+  const totalReg = Object.values(counts).reduce((s, n) => s + n, 0);
+  const tamMB    = (buffer.byteLength / 1_048_576).toFixed(2);
+  await sendTelegramAlert(
+    supabase,
+    `*Backup PrestaPro exitoso*\n` +
+    `Fecha: ${formatDate(new Date().toISOString())} ${new Date().toTimeString().slice(0, 5)}\n` +
+    `Archivo: ${filename}\n` +
+    `Tamano: ${tamMB} MB\n` +
+    `Registros: ${counts.clientes} clientes, ${counts.prestamos} prestamos, ${totalReg} total\n` +
+    `Duracion: ${(duracion_ms / 1000).toFixed(1)} seg`
+  );
+
+  // 6. Política de retención (no bloquea si falla)
   await applyRetentionPolicy(supabase);
 
   return {
