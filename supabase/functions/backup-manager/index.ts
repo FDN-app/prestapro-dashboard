@@ -467,6 +467,81 @@ const saveBackupRecord = async (
   if (error) console.error("saveBackupRecord failed:", error.message);
 };
 
+// ─── POLÍTICA DE RETENCIÓN ESCALONADA ───────────────────────────────────────
+
+const applyRetentionPolicy = async (
+  supabase: ReturnType<typeof createClient>
+): Promise<void> => {
+  try {
+    // Listar todos los archivos en backups/xlsx/
+    const { data: files, error } = await supabase.storage
+      .from("backups")
+      .list("xlsx", { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+
+    if (error || !files || files.length === 0) return;
+
+    const now = new Date();
+    const toKeep = new Set<string>();
+
+    // Agrupar por fecha (YYYY-MM-DD extraído del nombre)
+    type FileEntry = { name: string; created_at: string | null };
+    const sorted = (files as FileEntry[]).sort(
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+    );
+
+    // Zona 1: últimos 7 días → conservar todos
+    const sevenDaysAgo  = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
+    // Zona 2: días 8-28 → 1 por semana (más reciente de cada semana ISO)
+    const fourWeeksAgo  = new Date(now); fourWeeksAgo.setDate(now.getDate() - 28);
+    // Zona 3: días 29-180 → 1 por mes (más reciente de cada mes)
+    const sixMonthsAgo  = new Date(now); sixMonthsAgo.setDate(now.getDate() - 180);
+
+    const seenWeeks  = new Set<string>();
+    const seenMonths = new Set<string>();
+
+    for (const f of sorted) {
+      const created = new Date(f.created_at ?? 0);
+      const path    = `xlsx/${f.name}`;
+
+      if (created >= sevenDaysAgo) {
+        // Zona 1: conservar todos
+        toKeep.add(path);
+      } else if (created >= fourWeeksAgo) {
+        // Zona 2: 1 por semana ISO
+        const weekKey = `${created.getFullYear()}-W${Math.ceil(
+          (created.getDate() + new Date(created.getFullYear(), created.getMonth(), 1).getDay()) / 7
+        )}`;
+        if (!seenWeeks.has(weekKey)) { seenWeeks.add(weekKey); toKeep.add(path); }
+      } else if (created >= sixMonthsAgo) {
+        // Zona 3: 1 por mes
+        const monthKey = `${created.getFullYear()}-${created.getMonth()}`;
+        if (!seenMonths.has(monthKey)) { seenMonths.add(monthKey); toKeep.add(path); }
+      }
+      // Más de 6 meses → no conservar
+    }
+
+    // Eliminar los que no están en toKeep
+    const toDelete = (sorted as FileEntry[])
+      .map((f) => `xlsx/${f.name}`)
+      .filter((p) => !toKeep.has(p));
+
+    if (toDelete.length === 0) return;
+
+    const { error: delError } = await supabase.storage
+      .from("backups")
+      .remove(toDelete);
+
+    if (delError) {
+      console.error("Retention policy delete error:", delError.message);
+    } else {
+      console.log(`Retention: ${toDelete.length} archivos eliminados del bucket.`);
+    }
+  } catch (e) {
+    // No interrumpir el flujo principal si la retención falla
+    console.error("applyRetentionPolicy exception:", e instanceof Error ? e.message : String(e));
+  }
+};
+
 // ─── ORQUESTADOR PRINCIPAL ────────────────────────────────────────────────────
 
 interface RunBackupResult {
@@ -532,6 +607,9 @@ const runBackup = async (
   });
 
   console.log(`Backup exitoso: ${filename} (${buffer.byteLength} bytes, ${duracion_ms}ms)`);
+
+  // 5. Política de retención (no bloquea si falla)
+  await applyRetentionPolicy(supabase);
 
   return {
     status: "success",
