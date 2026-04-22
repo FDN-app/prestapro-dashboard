@@ -26,3 +26,7 @@ dist-ssr
 *.sw?
 
 supabase/.temp/
+
+# Archivos Excel de prueba / validación
+*.xlsx
+.~lock.*
