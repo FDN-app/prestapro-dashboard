@@ -780,9 +780,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// ─── CRON: BACKUP DIARIO (Desactivado hasta pasar tests E2E) ───────────────
+// ─── CRON: BACKUP DIARIO ─────────────────────────────────────────────────────
 // 0 6 * * * = 06:00 UTC = 03:00 ARG
-/*
 Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
   const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -832,11 +831,9 @@ Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
     }
   }
 });
-*/
 
-// ─── CRON: RESUMEN SEMANAL (Desactivado hasta pasar tests E2E) ───────────────
+// ─── CRON: RESUMEN SEMANAL ───────────────────────────────────────────────────
 // 0 12 * * 0 = 12:00 UTC domingos = 09:00 ARG domingos
-/*
 Deno.cron("resumen-semanal-prestapro", "0 12 * * 0", async () => {
   const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -845,4 +842,3 @@ Deno.cron("resumen-semanal-prestapro", "0 12 * * 0", async () => {
   console.log("Cron: resumen-semanal-prestapro disparado");
   await sendResumenSemanal(supabase);
 });
-*/
