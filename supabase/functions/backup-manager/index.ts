@@ -388,62 +388,225 @@ const buildWorkbook = async (data: AllData): Promise<ArrayBuffer> => {
   return await wb.xlsx.writeBuffer();
 };
 
+// ─── HELPERS: STORAGE, CHANGE DETECTION, HISTORY ────────────────────────────
+
+// deno-lint-ignore no-explicit-any
+const getRecordCounts = (data: AllData): Record<string, number> => ({
+  clientes:          (data.clientes as any[]).length,
+  prestamos:         (data.prestamos as any[]).length,
+  cuotas:            (data.cuotas as any[]).length,
+  pagos:             (data.pagos as any[]).length,
+  capital:           (data.capital as any[]).length,
+  perfiles:          (data.perfiles as any[]).length,
+  suscripciones:     (data.suscripciones as any[]).length,
+  pagos_suscripcion: (data.pagos_suscripcion as any[]).length,
+  log_auditoria:     (data.log_auditoria as any[]).length,
+  mensajes_telegram: (data.mensajes_telegram as any[]).length,
+});
+
+const getLastSuccessfulBackup = async (
+  supabase: ReturnType<typeof createClient>
+): Promise<Date | null> => {
+  const { data, error } = await supabase
+    .from("backup_history")
+    .select("fecha_backup")
+    .eq("estado", "success")
+    .order("fecha_backup", { ascending: false })
+    .limit(1)
+    .single();
+  if (error || !data) return null;
+  return new Date((data as any).fecha_backup);
+};
+
+const hasChanges = async (
+  supabase: ReturnType<typeof createClient>,
+  since: Date | null
+): Promise<boolean> => {
+  if (!since) return true; // primer backup siempre corre
+  const { count, error } = await supabase
+    .from("log_auditoria")
+    .select("*", { count: "exact", head: true })
+    .gt("fecha", since.toISOString());
+  if (error) throw new Error(`hasChanges query failed: ${error.message}`);
+  return (count ?? 0) > 0;
+};
+
+const uploadToStorage = async (
+  supabase: ReturnType<typeof createClient>,
+  buffer: ArrayBuffer,
+  filename: string
+): Promise<string> => {
+  const path = `xlsx/${filename}`;
+  const { error } = await supabase.storage
+    .from("backups")
+    .upload(path, buffer, {
+      contentType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      upsert: false,
+    });
+  if (error) throw new Error(`uploadToStorage failed: ${error.message}`);
+  return path;
+};
+
+interface BackupRecord {
+  nombre_archivo: string;
+  ruta_bucket: string | null;
+  tamano_bytes: number | null;
+  estado: "success" | "failed" | "skipped_no_changes";
+  mensaje_error: string | null;
+  duracion_ms: number;
+  tipo_disparo: "cron" | "manual" | "test";
+  registros_exportados: Record<string, number> | null;
+}
+
+const saveBackupRecord = async (
+  supabase: ReturnType<typeof createClient>,
+  record: BackupRecord
+): Promise<void> => {
+  const { error } = await supabase.from("backup_history").insert(record);
+  if (error) console.error("saveBackupRecord failed:", error.message);
+};
+
+// ─── ORQUESTADOR PRINCIPAL ────────────────────────────────────────────────────
+
+interface RunBackupResult {
+  status: "success" | "skipped" | "error";
+  filename?: string;
+  ruta_bucket?: string;
+  tamano_bytes?: number;
+  duracion_ms?: number;
+  registros?: Record<string, number>;
+  message?: string;
+  buffer?: ArrayBuffer;
+}
+
+const runBackup = async (
+  supabase: ReturnType<typeof createClient>,
+  tipo_disparo: "cron" | "manual" | "test"
+): Promise<RunBackupResult> => {
+  const start = Date.now();
+  const now = new Date();
+  const fecha = now.toISOString().slice(0, 10);
+  const hora  = now.toTimeString().slice(0, 5).replace(":", "-");
+  const filename = `PrestaPro_Backup_${fecha}_${hora}.xlsx`;
+
+  // 1. Detección de cambios
+  const lastBackup = await getLastSuccessfulBackup(supabase);
+  const changed    = await hasChanges(supabase, lastBackup);
+
+  if (!changed) {
+    console.log("Backup omitido: sin cambios desde el último backup.");
+    await saveBackupRecord(supabase, {
+      nombre_archivo: filename,
+      ruta_bucket: null,
+      tamano_bytes: null,
+      estado: "skipped_no_changes",
+      mensaje_error: null,
+      duracion_ms: Date.now() - start,
+      tipo_disparo,
+      registros_exportados: null,
+    });
+    return { status: "skipped", message: "Sin cambios desde el último backup exitoso." };
+  }
+
+  // 2. Generar datos y workbook
+  const data   = await fetchAllData(supabase);
+  const counts = getRecordCounts(data);
+  const buffer = await buildWorkbook(data);
+
+  // 3. Subir al bucket
+  const ruta = await uploadToStorage(supabase, buffer, filename);
+
+  const duracion_ms = Date.now() - start;
+
+  // 4. Registrar en backup_history
+  await saveBackupRecord(supabase, {
+    nombre_archivo: filename,
+    ruta_bucket: ruta,
+    tamano_bytes: buffer.byteLength,
+    estado: "success",
+    mensaje_error: null,
+    duracion_ms,
+    tipo_disparo,
+    registros_exportados: counts,
+  });
+
+  console.log(`Backup exitoso: ${filename} (${buffer.byteLength} bytes, ${duracion_ms}ms)`);
+
+  return {
+    status: "success",
+    filename,
+    ruta_bucket: ruta,
+    tamano_bytes: buffer.byteLength,
+    duracion_ms,
+    registros: counts,
+    buffer,
+  };
+};
+
 // ─── HANDLER PRINCIPAL ────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   const { method } = req;
   const origin = req.headers.get("origin");
 
-  // Preflight CORS
   if (method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders(origin) });
   }
 
   try {
-    const supabaseUrl      = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Backup Manager — iniciando generación de Excel...");
+    const url         = new URL(req.url);
+    const mode        = url.searchParams.get("mode");
+    const disparoParam = url.searchParams.get("disparo");
+    const tipoDisparo: "manual" | "test" =
+      disparoParam === "test" ? "test" : "manual";
 
-    const data = await fetchAllData(supabase);
+    console.log(`Backup Manager — modo: ${mode ?? "default"}, disparo: ${tipoDisparo}`);
 
-    console.log(
-      `Datos consultados: ${(data.clientes as any[]).length} clientes, ` +
-      `${(data.prestamos as any[]).length} préstamos, ` +
-      `${(data.cuotas as any[]).length} cuotas, ` +
-      `${(data.pagos as any[]).length} pagos`
+    const result = await runBackup(supabase, tipoDisparo);
+
+    if (result.status === "skipped") {
+      return new Response(
+        JSON.stringify({ status: "skipped", message: result.message }),
+        { headers: { ...corsHeaders(origin), "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // ?mode=download: devuelve el .xlsx directamente (ya fue subido al bucket)
+    if (mode === "download" && result.buffer) {
+      return new Response(result.buffer, {
+        headers: {
+          ...corsHeaders(origin),
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${result.filename}"`,
+        },
+        status: 200,
+      });
+    }
+
+    // Default: JSON con estado y ruta del bucket
+    return new Response(
+      JSON.stringify({
+        status:       result.status,
+        filename:     result.filename,
+        ruta_bucket:  result.ruta_bucket,
+        tamano_bytes: result.tamano_bytes,
+        duracion_ms:  result.duracion_ms,
+        registros:    result.registros,
+      }),
+      { headers: { ...corsHeaders(origin), "Content-Type": "application/json" }, status: 200 }
     );
-
-    const buffer = await buildWorkbook(data);
-
-    // Nombre de archivo con fecha y hora
-    const now   = new Date();
-    const fecha = now.toISOString().slice(0, 10);                        // "2026-04-22"
-    const hora  = now.toTimeString().slice(0, 5).replace(":", "-");      // "15-30"
-    const filename = `PrestaPro_Backup_${fecha}_${hora}.xlsx`;
-
-    console.log(`Excel generado: ${filename} (${buffer.byteLength} bytes)`);
-
-    return new Response(buffer, {
-      headers: {
-        ...corsHeaders(origin),
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-      status: 200,
-    });
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Error en Backup Manager:", msg);
-
     return new Response(
       JSON.stringify({ status: "error", message: msg }),
-      {
-        headers: { ...corsHeaders(origin), "Content-Type": "application/json" },
-        status: 500,
-      }
+      { headers: { ...corsHeaders(origin), "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
