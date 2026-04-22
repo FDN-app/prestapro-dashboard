@@ -769,3 +769,66 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ─── CRON: BACKUP DIARIO ─────────────────────────────────────────────────────
+// 0 6 * * * = 06:00 UTC = 03:00 ARG
+Deno.cron("backup-diario-prestapro", "0 6 * * *", async () => {
+  const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Cron: backup-diario-prestapro disparado");
+
+  try {
+    await runBackup(supabase, "cron");
+  } catch (err1) {
+    const msg1 = err1 instanceof Error ? err1.message : String(err1);
+    console.error("Cron backup fallo en primer intento:", msg1);
+
+    // Reintento único con 30 segundos de espera
+    await new Promise((r) => setTimeout(r, 30_000));
+    console.log("Cron: reintentando backup...");
+
+    try {
+      await runBackup(supabase, "cron");
+    } catch (err2) {
+      const msg2 = err2 instanceof Error ? err2.message : String(err2);
+      console.error("Cron backup fallo en segundo intento:", msg2);
+
+      // Registrar falla en backup_history
+      const now = new Date();
+      const fecha = now.toISOString().slice(0, 10);
+      const hora  = now.toTimeString().slice(0, 5).replace(":", "-");
+      await saveBackupRecord(supabase, {
+        nombre_archivo: `PrestaPro_Backup_${fecha}_${hora}.xlsx`,
+        ruta_bucket: null,
+        tamano_bytes: null,
+        estado: "failed",
+        mensaje_error: msg2,
+        duracion_ms: 0,
+        tipo_disparo: "cron",
+        registros_exportados: null,
+      });
+
+      // Alerta Telegram de falla
+      await sendTelegramAlert(
+        supabase,
+        `*Backup PrestaPro FALLIDO*\n` +
+        `Fecha: ${formatDate(now.toISOString())} ${now.toTimeString().slice(0, 5)}\n` +
+        `Error: ${msg2}\n` +
+        `Se reintento 1 vez sin exito. Revisar logs en Supabase.`
+      );
+    }
+  }
+});
+
+// ─── CRON: RESUMEN SEMANAL ───────────────────────────────────────────────────
+// 0 12 * * 0 = 12:00 UTC domingos = 09:00 ARG domingos
+Deno.cron("resumen-semanal-prestapro", "0 12 * * 0", async () => {
+  const supabaseUrl        = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("Cron: resumen-semanal-prestapro disparado");
+  await sendResumenSemanal(supabase);
+});
