@@ -40,8 +40,8 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 
 ### 3.8 Sistema de Backup y Restauración
 - **Motor de Exportación**: Genera archivos Excel (`.xlsx`) con 11 hojas tabulares (Resumen de KPIs, Clientes, Préstamos, Cuotas, Pagos, Capital, Perfiles, Suscripciones, Pagos Suscripción, Auditoría, Telegram).
-- **Automatización**: Ejecutado vía Edge Function (`backup-manager`) utilizando `Deno.cron`.
-  - Diario a las 03:00 ARG con lógica de *retry* ante fallos.
+- **Automatización**: Ejecutado vía Edge Function (`backup-manager`) invocada por `pg_cron`.
+  - Diario a las 03:00 ARG.
   - Resumen Semanal los domingos a las 09:00 ARG.
 - **Detección de Cambios**: Consulta la tabla `log_auditoria` para generar un nuevo Excel únicamente si hubo actividad desde el último backup exitoso, ahorrando procesamiento.
 - **Almacenamiento y Retención**: Los archivos se suben a Supabase Storage (bucket privado: `backups`). La política de retención es escalonada: conserva todos los de los últimos 7 días, 1 por semana el primer mes, y 1 por mes hasta 6 meses.
@@ -80,7 +80,7 @@ PrestaPro es una app especializada, sencilla pero estricta, que automatiza el c�
 - **Modelo de Datos:** perfiles, clientes, prestamos, cuotas, pagos, capital, log_auditoria, config_telegram, backup_history.
 - **Storage:** Bucket privado `backups` para el resguardo de los reportes en Excel.
 - **Seguridad:** Row Level Security (RLS) en base de datos, Autenticación obligatoria.
-- **Cron Jobs:** 2 procesos nativos `Deno.cron` en la función `backup-manager` (Diario y Semanal).
+- **Cron Jobs:** 2 procesos `pg_cron` (PostgreSQL) llamando vía HTTP a la función `backup-manager` (Diario y Semanal).
 
 ## 9. Flujos Lógicos Core
 - Admin crea préstamo $\rightarrow$ App calcula $\rightarrow$ Admin revisa $\rightarrow$ Crea préstamo + cuotas.
