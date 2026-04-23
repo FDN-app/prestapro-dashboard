@@ -22,6 +22,7 @@ export default function NewLoan() {
   const [amount, setAmount] = useState(500000);
   const [rate, setRate] = useState(10);
   const [comision, setComision] = useState(0);
+  const [renovados, setRenovados] = useState('');
   const [rateType, setRateType] = useState<'fijo' | 'variable'>('fijo');
   const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'personalizado'>('semanal');
   const [customDays, setCustomDays] = useState(28);
@@ -93,6 +94,7 @@ export default function NewLoan() {
       p_fecha_inicio: new Date().toISOString().split('T')[0],
       p_fecha_primera_cuota: fechaPrimCuota,
       p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
+      p_renovados: renovados ? Number(renovados) : null,
       p_cuotas: schedule.map(s => {
         return {
           num: s.number,
@@ -134,7 +136,7 @@ export default function NewLoan() {
               {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label>Monto base ($) *</Label>
               <Input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} />
@@ -142,6 +144,10 @@ export default function NewLoan() {
             <div className="space-y-2">
               <Label>Comisión inicial ($)</Label>
               <Input type="number" value={comision} onChange={e => setComision(Number(e.target.value))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Monto renovado ($)</Label>
+              <Input type="number" placeholder="Opcional" value={renovados} onChange={e => setRenovados(e.target.value)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

@@ -23,6 +23,7 @@ export default function LoanDetail() {
   const [refiOpen, setRefiOpen] = useState(false);
   const [refiStep, setRefiStep] = useState(1);
   const [discount, setDiscount] = useState(0);
+  const [comisionCancelados, setComisionCancelados] = useState('');
 
   // States para refinanciación
   const [refiTasa, setRefiTasa] = useState(10);
@@ -182,9 +183,15 @@ export default function LoanDetail() {
               <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Saldo pendiente total</p>
               <p className="text-3xl font-black text-primary">{formatCurrency(loan.saldo_pendiente)}</p>
             </div>
-            <div className="space-y-2">
-              <Label>Descuento por pronto pago (%)</Label>
-              <Input type="number" value={discount} onChange={e => setDiscount(Number(e.target.value))} className="text-lg font-bold" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Descuento por pronto pago (%)</Label>
+                <Input type="number" value={discount} onChange={e => setDiscount(Number(e.target.value))} className="text-lg font-bold" />
+              </div>
+              <div className="space-y-2">
+                <Label>Comisión por cancelación ($)</Label>
+                <Input type="number" placeholder="Opcional" value={comisionCancelados} onChange={e => setComisionCancelados(e.target.value)} className="text-lg font-bold" />
+              </div>
             </div>
             <div className="pt-4 border-t border-border flex items-center justify-between">
               <span className="text-sm font-medium">Monto final a cobrar:</span>
@@ -192,7 +199,11 @@ export default function LoanDetail() {
             </div>
             <Button className="w-full font-bold py-6" onClick={async () => {
               try {
-                await liquidarPrestamo({ prestamo_id: loan.id, monto_pago: loan.saldo_pendiente * (1 - discount / 100) });
+                await liquidarPrestamo({ 
+                  prestamo_id: loan.id, 
+                  monto_pago: loan.saldo_pendiente * (1 - discount / 100),
+                  p_comision_cancelados: comisionCancelados ? Number(comisionCancelados) : null
+                });
                 setEarlyOpen(false);
                 navigate('/dashboard');
               } catch (e) {}

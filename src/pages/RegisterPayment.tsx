@@ -4,6 +4,7 @@ import { formatCurrency } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,6 +28,7 @@ export default function RegisterPayment() {
   const [loanId, setLoanId] = useState(preselectedLoan);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('efectivo');
+  const [esCobroDirectoAdmin, setEsCobroDirectoAdmin] = useState(false);
   const [notes, setNotes] = useState('');
 
   const { cuotas, isLoading: loadingCuotas } = useCuotas(loanId);
@@ -57,6 +59,7 @@ export default function RegisterPayment() {
         p_prestamo_id: loanId,
         p_monto: Number(amount),
         p_metodo: method,
+        p_es_cobro_directo_admin: esCobroDirectoAdmin,
         p_notas: notes
       });
       navigate(-1);
@@ -140,6 +143,11 @@ export default function RegisterPayment() {
         <div className="space-y-2">
           <Label>Notas</Label>
           <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas opcionales..." />
+        </div>
+
+        <div className="flex items-center justify-between bg-secondary/20 p-3 rounded-lg border border-border/50">
+          <Label>Cobro directo al admin</Label>
+          <Switch checked={esCobroDirectoAdmin} onCheckedChange={setEsCobroDirectoAdmin} />
         </div>
 
         <Button className="w-full bg-status-green hover:bg-status-green/90 text-white" onClick={handleConfirm} disabled={isRegistrando || !loanId}>
