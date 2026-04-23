@@ -20,6 +20,11 @@ export interface Prestamo {
     nombre_completo: string;
     dni: string;
   };
+  pagos?: {
+    monto_pagado: number;
+    fecha_pago: string;
+    es_cobro_directo_admin: boolean;
+  }[];
 }
 
 export function usePrestamos() {
@@ -35,6 +40,11 @@ export function usePrestamos() {
           clientes (
             nombre_completo,
             dni
+          ),
+          pagos (
+            monto_pagado,
+            fecha_pago,
+            es_cobro_directo_admin
           )
         `)
         .order('fecha_inicio', { ascending: false });

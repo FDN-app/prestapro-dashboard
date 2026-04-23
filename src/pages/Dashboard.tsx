@@ -199,180 +199,120 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 function PrestamosTable() {
-  const { prestamos, isLoading, updatePrestamo, liquidarPrestamo } = usePrestamos();
+  const { prestamos, isLoading } = usePrestamos();
   const navigate = useNavigate();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // States para la fila expandida
-  const [editInteres, setEditInteres] = useState<number>(0);
-  const [editFrecPago, setEditFrecPago] = useState<string>('');
-  const [editFrecDias, setEditFrecDias] = useState<number>(0);
+  const weeks = useMemo(() => {
+    const w = [];
+    const currDate = new Date();
+    // Ajustar al lunes de la semana actual
+    const day = currDate.getDay() || 7; 
+    currDate.setDate(currDate.getDate() - (day - 1));
+    currDate.setHours(0,0,0,0);
+    
+    for (let i = 0; i < 12; i++) {
+      const monday = new Date(currDate);
+      monday.setDate(monday.getDate() - i * 7);
+      const sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      sunday.setHours(23,59,59,999);
+      
+      w.push({
+        label: `${monday.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} al ${sunday.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`,
+        start: monday.getTime(),
+        end: sunday.getTime()
+      });
+    }
+    return w;
+  }, []);
 
   if (isLoading) return <div className="text-muted-foreground p-4">Cargando préstamos...</div>;
 
   const activos = prestamos.filter(p => p.estado !== 'pagado' && p.estado !== 'liquidado');
-
-  const handleExpand = (p: any) => {
-    if (expandedId === p.id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(p.id);
-      setEditInteres(p.tasa_interes);
-      setEditFrecPago(p.frecuencia_pago);
-      setEditFrecDias(p.frecuencia_dias || 0);
-    }
-  };
-
-  const handleSaveEdit = async (id: string) => {
-    try {
-      await updatePrestamo({
-        id, 
-        updates: { 
-          tasa_interes: editInteres, 
-          frecuencia_pago: editFrecPago, 
-          frecuencia_dias: editFrecPago === 'personalizado' ? editFrecDias : null 
-        }
-      });
-    } catch (e) {
-      // Error manejado en el hook
-    }
-  };
 
   const formatFreq = (p: any) => {
     if (p.frecuencia_pago === 'semanal') return `${p.cantidad_cuotas}s`;
     if (p.frecuencia_pago === 'quincenal') return `${p.cantidad_cuotas}q`;
     if (p.frecuencia_pago === 'mensual') return `${p.cantidad_cuotas}m`;
     if (p.frecuencia_pago === 'personalizado') {
-        if (p.cantidad_cuotas === 1) return `${p.frecuencia_dias}`; // e.g. "28" or "10d"
+        if (p.cantidad_cuotas === 1) return `${p.frecuencia_dias}`; 
         return `${p.cantidad_cuotas} (${p.frecuencia_dias}d)`;
     }
     return `${p.cantidad_cuotas}c`;
   };
 
-  const getInteresAmount = (p: any) => {
-    return (p.monto_original * p.tasa_interes) / 100;
-  };
+  const getInteresAmount = (p: any) => (p.monto_original * p.tasa_interes) / 100;
 
   return (
     <div className="w-full overflow-x-auto pb-4">
-      <table className="w-full text-sm border-separate border-spacing-y-2">
+      <table className="w-full text-sm border-separate border-spacing-0">
         <thead>
-          <tr className="text-muted-foreground whitespace-nowrap px-4 text-xs tracking-wider uppercase font-semibold">
-            <th className="text-left p-3">Nombre</th>
-            <th className="text-left p-3">CUIL</th>
-            <th className="text-left p-3">Saldo</th>
-            <th className="text-left p-3">Crédito</th>
-            <th className="text-left p-3">Interés</th>
-            <th className="text-left p-3">Cuotas</th>
-            <th className="text-left p-3">Comisión</th>
-            <th className="text-left p-3">Renovados</th>
-            <th className="text-left p-3">Fecha</th>
+          <tr className="bg-muted/50 text-muted-foreground whitespace-nowrap text-xs tracking-wider uppercase font-semibold">
+            <th className="text-left p-3 sticky left-0 z-10 bg-muted/90 backdrop-blur border-b border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nombre</th>
+            <th className="text-left p-3 border-b border-border">CUIL</th>
+            <th className="text-left p-3 border-b border-border">Saldo</th>
+            <th className="text-left p-3 border-b border-border">Crédito</th>
+            <th className="text-left p-3 border-b border-border">interes</th>
+            <th className="text-left p-3 border-b border-border">Cuotas</th>
+            <th className="text-left p-3 border-b border-border">Comisión cancelados</th>
+            <th className="text-left p-3 border-b border-border">Renovados</th>
+            <th className="text-left p-3 border-b border-border">fecha</th>
+            <th className="text-left p-3 border-b border-border bg-primary/5">suma total semanales</th>
+            <th className="text-left p-3 border-b border-border bg-primary/5">Clientes q me pagaron a mi</th>
+            <th className="text-left p-3 border-b border-border bg-primary/5 font-bold">Total Semanales</th>
+            {weeks.map((w, i) => (
+              <th key={i} className="text-left p-3 border-b border-border">{w.label}</th>
+            ))}
           </tr>
         </thead>
-        <tbody className="bg-transparent">
+        <tbody>
           {activos.length === 0 && (
-            <tr><td colSpan={9} className="p-4 text-center text-muted-foreground bg-card/50 rounded-xl">No hay préstamos activos</td></tr>
+            <tr><td colSpan={12 + weeks.length} className="p-4 text-center text-muted-foreground">No hay préstamos activos</td></tr>
           )}
-          {activos.map((p) => (
-            <React.Fragment key={p.id}>
-              <tr 
-                className={cn(
-                  "group transition-all duration-300 cursor-pointer",
-                  expandedId === p.id 
-                    ? "bg-card/90 shadow-md ring-1 ring-primary/20 scale-[1.01]" 
-                    : "bg-card/50 hover:bg-card/80 hover:shadow-lg hover:-translate-y-0.5 hover:ring-1 hover:ring-border"
-                )}
-                onClick={() => handleExpand(p)}
-              >
-                <td className="p-4 font-medium rounded-l-xl text-foreground group-hover:text-primary transition-colors">{p.clientes?.nombre_completo} <span className="text-xs text-primary/70">{p.tasa_interes}%</span></td>
-                <td className="p-4 text-muted-foreground">{p.clientes?.dni}</td>
-                <td className={`p-4 font-extrabold ${p.estado === 'mora' ? 'text-destructive' : 'text-rose-500'}`}>{formatCurrency(p.saldo_pendiente)}</td>
-                <td className="p-4 font-medium">{formatCurrency(p.monto_original)}</td>
-                <td className="p-4 text-muted-foreground">{formatCurrency(getInteresAmount(p))}</td>
-                <td className="p-4 whitespace-nowrap text-muted-foreground font-medium">{formatFreq(p)}</td>
-                <td className="p-4 text-muted-foreground">{p.comision > 0 ? formatCurrency(p.comision) : '-'}</td>
-                <td className="p-4 text-muted-foreground font-semibold">{p.cantidad_renovaciones > 0 ? p.cantidad_renovaciones : '-'}</td>
-                <td className="p-4 text-muted-foreground rounded-r-xl">{new Date(p.fecha_inicio).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }).replace('.', '')}</td>
-              </tr>
-              {expandedId === p.id && (
-                <tr>
-                  <td colSpan={9} className="p-0">
-                    <div className="mx-2 mb-4 mt-1 bg-card/30 backdrop-blur-md rounded-xl p-5 border border-primary/20 shadow-inner animate-in slide-in-from-top-2 duration-300">
-                      
-                      <div className="flex flex-col xl:flex-row gap-8">
-                      {/* Editor Rápido */}
-                      <div className="flex-1 space-y-4">
-                        <h4 className="font-semibold text-primary">Modificar Condiciones</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label>Tasa de interés (%)</Label>
-                            <Input type="number" value={editInteres} onChange={e => setEditInteres(Number(e.target.value))} />
-                          </div>
-                          <div className="space-y-1">
-                            <Label>Frecuencia</Label>
-                            <select value={editFrecPago} onChange={e => setEditFrecPago(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
-                              <option value="semanal">Semanal</option>
-                              <option value="quincenal">Quincenal</option>
-                              <option value="mensual">Mensual</option>
-                              <option value="personalizado">Personalizado</option>
-                            </select>
-                          </div>
-                          {editFrecPago === 'personalizado' && (
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label>Días de frecuencia</Label>
-                              <Input type="number" value={editFrecDias} onChange={e => setEditFrecDias(Number(e.target.value))} />
-                            </div>
-                          )}
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => handleSaveEdit(p.id)}>Guardar Cambios</Button>
-                      </div>
+          {activos.map((p) => {
+            const pagos = p.pagos || [];
+            
+            const sumaTotalSemanales = pagos.reduce((acc, pago) => acc + Number(pago.monto_pagado), 0);
+            const pagadoAdmin = pagos.filter(pago => pago.es_cobro_directo_admin).reduce((acc, pago) => acc + Number(pago.monto_pagado), 0);
+            const totalSemanales = sumaTotalSemanales; // Según el mapeo, es igual
 
-                      {/* Info adicional y Acciones */}
-                      <div className="flex-1 space-y-4 xl:border-l xl:border-border xl:pl-6">
-                        <h4 className="font-semibold text-primary">Detalle de Avance</h4>
-                        <div className="text-sm space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Estado:</span>
-                            <span className="font-medium capitalize">{p.estado}</span>
-                          </div>
-                          {/* El cálculo exacto de pagados requiere hacer JOIN de cuotas, para este MVP mostramos la metadata del prestamo */}
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Saldo Restante:</span>
-                            <span className="font-medium">{formatCurrency(p.saldo_pendiente)}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          <Button size="sm" className="bg-status-green hover:bg-status-green/90 text-white" onClick={() => navigate(`/registrar-pago?prestamo=${p.id}`)}>Registrar Pago</Button>
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            onClick={() => {
-                              navigate(`/nuevo-prestamo?refinanciar=${p.id}`);
-                            }}
-                          >
-                            Refinanciar
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="border-status-blue text-status-blue hover:bg-status-blue/10"
-                            onClick={async () => {
-                              if (window.confirm(`¿Confirmás la liquidación total por ${formatCurrency(p.saldo_pendiente)}?`)) {
-                                await liquidarPrestamo({ prestamo_id: p.id, monto_pago: p.saldo_pendiente });
-                              }
-                            }}
-                          >
-                            Liquidar Anticipado
-                          </Button>
-                        </div>
-                      </div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
-          ))}
+            return (
+              <tr 
+                key={p.id}
+                className="group transition-colors duration-200 hover:bg-muted/30 cursor-pointer border-b border-border/50"
+                onClick={() => navigate(`/prestamo/${p.id}`)}
+              >
+                <td className="p-3 font-medium text-foreground whitespace-nowrap sticky left-0 z-10 bg-card group-hover:bg-muted/90 border-b border-border/50 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                  {p.clientes?.nombre_completo} {p.tasa_interes}%
+                </td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap border-b border-border/50">{p.clientes?.dni}</td>
+                <td className={`p-3 font-bold border-b border-border/50 ${p.estado === 'mora' ? 'text-destructive' : 'text-primary'}`}>{formatCurrency(p.saldo_pendiente)}</td>
+                <td className="p-3 font-medium border-b border-border/50 whitespace-nowrap">{formatCurrency(p.monto_original)}</td>
+                <td className="p-3 text-muted-foreground border-b border-border/50 whitespace-nowrap">{formatCurrency(getInteresAmount(p))}</td>
+                <td className="p-3 text-muted-foreground font-medium border-b border-border/50 whitespace-nowrap">{formatFreq(p)}</td>
+                <td className="p-3 text-muted-foreground border-b border-border/50">{(p as any).comision_cancelados ? formatCurrency((p as any).comision_cancelados) : '-'}</td>
+                <td className="p-3 text-muted-foreground border-b border-border/50">{(p as any).renovados ? formatCurrency((p as any).renovados) : '-'}</td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap border-b border-border/50">{new Date(p.fecha_inicio).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</td>
+                
+                <td className="p-3 bg-primary/5 font-semibold text-foreground border-b border-border/50 whitespace-nowrap">{formatCurrency(sumaTotalSemanales)}</td>
+                <td className="p-3 bg-primary/5 font-semibold text-foreground border-b border-border/50 whitespace-nowrap">{formatCurrency(pagadoAdmin)}</td>
+                <td className="p-3 bg-primary/5 font-bold text-primary border-b border-border/50 whitespace-nowrap">{formatCurrency(totalSemanales)}</td>
+                
+                {weeks.map((w, i) => {
+                  const cobradoSemana = pagos.filter(pago => {
+                    const d = new Date(pago.fecha_pago).getTime();
+                    return d >= w.start && d <= w.end;
+                  }).reduce((acc, pago) => acc + Number(pago.monto_pagado), 0);
+                  
+                  return (
+                    <td key={i} className="p-3 text-muted-foreground border-b border-border/50 whitespace-nowrap">
+                      {cobradoSemana > 0 ? formatCurrency(cobradoSemana) : '-'}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
