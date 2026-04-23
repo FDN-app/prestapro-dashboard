@@ -205,6 +205,10 @@ export function useBackup() {
         'Fecha Pago': c.fecha_pago ? new Date(c.fecha_pago).toLocaleDateString() : '-'
       })) || [];
 
+      const paymentsSheet = pagos?.map(p => ({
+        'Cliente': (p.prestamos as any)?.clientes?.nombre_completo || 'N/A',
+        'Préstamo ID': p.prestamo_id?.split('-')[0] || '-',
+        'Fecha Pago': new Date(p.fecha_pago).toLocaleString(),
         'Monto': Number(p.monto_pagado),
         'Registrado Por': (p.cobrador as any)?.email || 'Admin'
       })) || [];

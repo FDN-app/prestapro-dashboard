@@ -19,7 +19,7 @@ import SettingsPage from "./pages/Settings";
 import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
 import Subscriptions from "./pages/Subscriptions";
-import NotFound from "./NotFound";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
