@@ -244,24 +244,24 @@ function PrestamosTable() {
   const getInteresAmount = (p: any) => (p.monto_original * p.tasa_interes) / 100;
 
   return (
-    <div className="w-full overflow-x-auto pb-4">
+    <div className="w-full max-h-[65vh] overflow-auto border-t border-border rounded-lg shadow-sm bg-card">
       <table className="w-full text-sm border-separate border-spacing-0">
         <thead>
-          <tr className="bg-muted/50 text-muted-foreground whitespace-nowrap text-xs tracking-wider uppercase font-semibold">
-            <th className="text-left p-3 sticky left-0 z-10 bg-muted/90 backdrop-blur border-b border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nombre</th>
-            <th className="text-left p-3 border-b border-border">CUIL</th>
-            <th className="text-left p-3 border-b border-border">Saldo</th>
-            <th className="text-left p-3 border-b border-border">Crédito</th>
-            <th className="text-left p-3 border-b border-border">interes</th>
-            <th className="text-left p-3 border-b border-border">Cuotas</th>
-            <th className="text-left p-3 border-b border-border">Comisión cancelados</th>
-            <th className="text-left p-3 border-b border-border">Renovados</th>
-            <th className="text-left p-3 border-b border-border">fecha</th>
-            <th className="text-left p-3 border-b border-border bg-primary/5">suma total semanales</th>
-            <th className="text-left p-3 border-b border-border bg-primary/5">Clientes q me pagaron a mi</th>
-            <th className="text-left p-3 border-b border-border bg-primary/5 font-bold">Total Semanales</th>
+          <tr className="bg-muted/90 text-muted-foreground whitespace-nowrap text-xs tracking-wider uppercase font-semibold">
+            <th className="text-left p-3 sticky left-0 top-0 z-30 bg-muted border-b border-r border-border shadow-[2px_2px_5px_-2px_rgba(0,0,0,0.1)]">Nombre</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">CUIL</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">Saldo</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">Crédito</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">interes</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">Cuotas</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">Comisión cancelados</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">Renovados</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">fecha</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-primary/10 backdrop-blur border-b border-border">suma total semanales</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-primary/10 backdrop-blur border-b border-border">Clientes q me pagaron a mi</th>
+            <th className="text-left p-3 sticky top-0 z-20 bg-primary/10 backdrop-blur border-b border-border font-bold">Total Semanales</th>
             {weeks.map((w, i) => (
-              <th key={i} className="text-left p-3 border-b border-border">{w.label}</th>
+              <th key={i} className="text-left p-3 sticky top-0 z-20 bg-muted/90 backdrop-blur border-b border-border">{w.label}</th>
             ))}
           </tr>
         </thead>
