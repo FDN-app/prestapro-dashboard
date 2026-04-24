@@ -59,19 +59,21 @@ export default function RendicionesPanel() {
           <tr className="bg-muted/90 text-muted-foreground whitespace-nowrap text-xs tracking-wider uppercase font-semibold">
             <th className="text-left p-3 border-b border-border">Fecha (Semana)</th>
             <th className="text-right p-3 border-b border-border">Total Cobrado</th>
-            <th className="text-right p-3 border-b border-border">Jorge (Cobrador)</th>
-            <th className="text-right p-3 border-b border-border">yo (Admin)</th>
+            {totales.parteCobrador > 0 && <th className="text-right p-3 border-b border-border">Jorge (Cobrador)</th>}
+            <th className="text-right p-3 border-b border-border">Yo (Admin)</th>
           </tr>
         </thead>
         <tbody>
           {semanas.length === 0 && (
-            <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No hay pagos registrados</td></tr>
+            <tr><td colSpan={totales.parteCobrador > 0 ? 4 : 3} className="p-4 text-center text-muted-foreground">No hay pagos registrados</td></tr>
           )}
           {semanas.map((s, i) => (
             <tr key={i} className="hover:bg-muted/30 transition-colors">
               <td className="p-3 border-b border-border/50 text-foreground font-medium">{s.label}</td>
               <td className="p-3 border-b border-border/50 font-bold text-right">{formatCurrency(s.totalCobrado)}</td>
-              <td className="p-3 border-b border-border/50 text-status-red text-right">{formatCurrency(s.parteCobrador)}</td>
+              {totales.parteCobrador > 0 && (
+                <td className="p-3 border-b border-border/50 text-status-red text-right">{formatCurrency(s.parteCobrador)}</td>
+              )}
               <td className="p-3 border-b border-border/50 text-primary font-bold text-right">{formatCurrency(s.parteAdmin)}</td>
             </tr>
           ))}
@@ -79,7 +81,9 @@ export default function RendicionesPanel() {
             <tr className="bg-muted/30">
               <td className="p-3 font-extrabold text-foreground uppercase text-xs tracking-wider">TOTALES</td>
               <td className="p-3 font-extrabold text-right text-base">{formatCurrency(totales.totalCobrado)}</td>
-              <td className="p-3 font-extrabold text-status-red text-right text-base">{formatCurrency(totales.parteCobrador)}</td>
+              {totales.parteCobrador > 0 && (
+                <td className="p-3 font-extrabold text-status-red text-right text-base">{formatCurrency(totales.parteCobrador)}</td>
+              )}
               <td className="p-3 font-extrabold text-primary text-right text-base">{formatCurrency(totales.parteAdmin)}</td>
             </tr>
           )}

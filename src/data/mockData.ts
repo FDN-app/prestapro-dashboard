@@ -159,7 +159,7 @@ export const collectorPendingPayments = [
   { clientName: 'María López', installmentNum: 4, dueDate: '25/03/2026', amount: 35000, status: 'pendiente' as const },
 ];
 
-export const formatCurrency = (n: number) => '$' + n.toLocaleString('es-AR');
+export const formatCurrency = (n: number) => '$' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const statusLabel = (s: string) => {
   switch (s) {
