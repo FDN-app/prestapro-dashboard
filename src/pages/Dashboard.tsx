@@ -144,11 +144,11 @@ export default function Dashboard() {
           <CobrosPeriodo />
         </ExpandableSection>
         
-        <ExpandableSection title="Rendiciones" subtitle="Control de caja por cobrador" icon={<span className="text-xl">💰</span>}>
+        <ExpandableSection title="Total Rendido Semanal" subtitle="Control de caja por cobrador" icon={<span className="text-xl">💰</span>}>
           <RendicionesPanel />
         </ExpandableSection>
         
-        <ExpandableSection title="Ganancias y Utilidades" subtitle="Neto mensual e intereses" icon={<span className="text-xl">📈</span>}>
+        <ExpandableSection title="Ganancias Semanales" subtitle="Neto mensual e intereses" icon={<span className="text-xl">📈</span>}>
           <GananciasReporte />
         </ExpandableSection>
         

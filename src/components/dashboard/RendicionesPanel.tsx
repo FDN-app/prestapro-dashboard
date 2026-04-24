@@ -1,82 +1,90 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { usePagosAdmin } from '@/hooks/usePagosAdmin';
 import { formatCurrency } from '@/data/mockData';
-import { Button } from '@/components/ui/button';
+
+function getWeekLabel(dateString: string) {
+  const d = new Date(dateString);
+  const day = d.getDay() || 7; 
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return `${monday.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} al ${sunday.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`;
+}
 
 export default function RendicionesPanel() {
-  const { pagos, isLoading, marcarRendido, isMarcando } = usePagosAdmin();
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const { pagos, isLoading } = usePagosAdmin();
 
-  const rendiciones = useMemo(() => {
-    // Agrupar por cobrador_id solo los 'en_caja' (pendientes)
-    const map = new Map();
+  const semanas = useMemo(() => {
+    const map = new Map<string, { label: string; totalCobrado: number; parteCobrador: number; parteAdmin: number; startMs: number }>();
+    
     pagos.forEach(p => {
-      // Rendición histórica vs actual. El admin quiere ver los pendientes para rendir.
-      if (p.destino_caja === 'en_caja') {
-        if (!map.has(p.cobrador_id)) {
-          map.set(p.cobrador_id, {
-            id: p.cobrador_id,
-            nombre: p.cobrador?.email || 'Admin',
-            total: 0,
-            pagos: []
-          });
-        }
-        const cobrador = map.get(p.cobrador_id);
-        cobrador.total += Number(p.monto_pagado);
-        cobrador.pagos.push(p);
+      const label = getWeekLabel(p.fecha_pago);
+      const tasa = p.prestamos?.tasa_interes || 0;
+      const gananciaSemana = p.monto_pagado * (tasa / (100 + tasa));
+      const comisionPorcentaje = p.cobrador?.comision_porcentaje || 0;
+      
+      const parteCobrador = gananciaSemana * (comisionPorcentaje / 100);
+      const totalCobrado = Number(p.monto_pagado);
+      const parteAdmin = totalCobrado - parteCobrador;
+      
+      if (!map.has(label)) {
+        const d = new Date(p.fecha_pago);
+        const day = d.getDay() || 7;
+        const startMs = new Date(d.setDate(d.getDate() - (day - 1))).getTime();
+        map.set(label, { label, totalCobrado: 0, parteCobrador: 0, parteAdmin: 0, startMs });
       }
+      
+      const week = map.get(label)!;
+      week.totalCobrado += totalCobrado;
+      week.parteCobrador += parteCobrador;
+      week.parteAdmin += parteAdmin;
     });
-    return Array.from(map.values());
+
+    return Array.from(map.values()).sort((a, b) => b.startMs - a.startMs);
   }, [pagos]);
+
+  const totales = semanas.reduce((acc, s) => ({
+    totalCobrado: acc.totalCobrado + s.totalCobrado,
+    parteCobrador: acc.parteCobrador + s.parteCobrador,
+    parteAdmin: acc.parteAdmin + s.parteAdmin
+  }), { totalCobrado: 0, parteCobrador: 0, parteAdmin: 0 });
 
   if (isLoading) return <div className="p-4 text-center text-sm">Cargando rendiciones...</div>;
 
-  if (rendiciones.length === 0) {
-    return <div className="p-4 text-sm text-muted-foreground text-center">No hay recaudación pendiente de rendir.</div>;
-  }
-
   return (
-    <div className="space-y-4">
-      {rendiciones.map((r: any) => (
-        <div key={r.id} className="bg-card border border-border rounded-xl overflow-hidden hover:border-primary/30 transition-colors">
-          <div 
-            className="p-4 flex items-center justify-between cursor-pointer"
-            onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-          >
-            <div>
-              <p className="font-semibold text-foreground">{r.nombre}</p>
-              <p className="text-sm font-medium text-status-red">Pendiente de rendir</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xl font-bold text-foreground">{formatCurrency(r.total)}</p>
-              <p className="text-xs text-muted-foreground">{r.pagos.length} pagos registrados</p>
-            </div>
-          </div>
-          
-          {expanded === r.id && (
-            <div className="p-4 bg-muted/20 border-t border-border space-y-4">
-              <div className="max-h-60 overflow-y-auto space-y-2">
-                {r.pagos.map((p: any) => (
-                  <div key={p.id} className="flex justify-between items-center bg-card p-2 rounded border border-border text-sm">
-                    <div>
-                      <p className="font-medium">{p.prestamos?.clientes?.nombre_completo}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(p.fecha_pago).toLocaleDateString()}</p>
-                    </div>
-                    <p className="font-bold">{formatCurrency(p.monto_pagado)}</p>
-                  </div>
-                ))}
-              </div>
-              <Button 
-                className="w-full" 
-                onClick={(e) => { e.stopPropagation(); marcarRendido(r.id); }}
-                disabled={isMarcando}
-              >
-                {isMarcando ? 'Procesando...' : 'Marcar plata entregada (Rendido)'}
-              </Button>
-            </div>
+    <div className="w-full overflow-x-auto">
+      <table className="w-full text-sm border-separate border-spacing-0">
+        <thead>
+          <tr className="bg-muted/90 text-muted-foreground whitespace-nowrap text-xs tracking-wider uppercase font-semibold">
+            <th className="text-left p-3 border-b border-border">Fecha (Semana)</th>
+            <th className="text-right p-3 border-b border-border">Total Cobrado</th>
+            <th className="text-right p-3 border-b border-border">Jorge (Cobrador)</th>
+            <th className="text-right p-3 border-b border-border">yo (Admin)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {semanas.length === 0 && (
+            <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No hay pagos registrados</td></tr>
           )}
-        </div>
-      ))}
+          {semanas.map((s, i) => (
+            <tr key={i} className="hover:bg-muted/30 transition-colors">
+              <td className="p-3 border-b border-border/50 text-foreground font-medium">{s.label}</td>
+              <td className="p-3 border-b border-border/50 font-bold text-right">{formatCurrency(s.totalCobrado)}</td>
+              <td className="p-3 border-b border-border/50 text-status-red text-right">{formatCurrency(s.parteCobrador)}</td>
+              <td className="p-3 border-b border-border/50 text-primary font-bold text-right">{formatCurrency(s.parteAdmin)}</td>
+            </tr>
+          ))}
+          {semanas.length > 0 && (
+            <tr className="bg-muted/30">
+              <td className="p-3 font-extrabold text-foreground uppercase text-xs tracking-wider">TOTALES</td>
+              <td className="p-3 font-extrabold text-right text-base">{formatCurrency(totales.totalCobrado)}</td>
+              <td className="p-3 font-extrabold text-status-red text-right text-base">{formatCurrency(totales.parteCobrador)}</td>
+              <td className="p-3 font-extrabold text-primary text-right text-base">{formatCurrency(totales.parteAdmin)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
