@@ -59,6 +59,9 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
     cell.font = { bold: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
   });
+  
+  // Forzar valor de A1 por seguridad
+  sheet1.getCell('A1').value = "Nombre";
 
   const prestamosActivosYMora = data.prestamos.filter((p: any) => p.estado === "activo" || p.estado === "mora");
 
@@ -78,14 +81,14 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       cliente.nombre_completo || "",
       cliente.dni || "",
       "", // Columna legacy vacía
-      { formula: `=E${rowNum}+F${rowNum}-K${rowNum}` }, // Saldo
+      { formula: `E${rowNum}+F${rowNum}-K${rowNum}` }, // Saldo
       Number(p.monto_original || 0), // Crédito
       interes,
       Number(p.cantidad_cuotas || 0),
       Number(p.comision || 0), // Comisión cancelados
       Number(p.cantidad_renovaciones || 0), // Renovados
       p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-AR") : "", // fecha
-      { formula: `=SUM(N${rowNum}:Z${rowNum})` }, // suma total semanales (asumiendo semanas empiezan en N)
+      { formula: `SUM(N${rowNum}:Z${rowNum})` }, // suma total semanales (asumiendo semanas empiezan en N)
       sumaPagosAdmin, // Clientes q me pagaron a mi
       0 // Total Semanales (lo dejamos en 0 o vacío por ahora)
     ];
@@ -113,13 +116,13 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   
   colsToSumH1.forEach(colIdx => {
     const letter = sheet1.getColumn(colIdx).letter;
-    sheet1.getCell(`${letter}${rowNum}`).value = { formula: `=SUM(${letter}2:${letter}${rowNum-1})` };
+    sheet1.getCell(`${letter}${rowNum}`).value = { formula: `SUM(${letter}2:${letter}${rowNum-1})` };
   });
 
 
   // ─── HOJA 2: Ganancias semanales ──────────────────────────────────
   const sheet2 = wb.addWorksheet("Ganancias semanales");
-  sheet2.addRow(["Fecha", "Ganancia Neta"]);
+  sheet2.addRow(["Ganancias semanales"]);
   sheet2.getRow(1).font = { bold: true };
 
   let rowNumH2 = 2;
@@ -139,11 +142,13 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       }
     });
 
-    sheet2.addRow([s.label, gananciaSemana]);
+    const dDate = new Date(s.start);
+    const dateStr = `${String(dDate.getDate()).padStart(2, "0")}/${String(dDate.getMonth() + 1).padStart(2, "0")}/${String(dDate.getFullYear()).slice(-2)}`;
+    sheet2.addRow([dateStr, gananciaSemana]);
     rowNumH2++;
   });
   
-  sheet2.addRow(["TOTAL", { formula: `=SUM(B2:B${rowNumH2-1})` }]);
+  sheet2.addRow(["", { formula: `SUM(B2:B${rowNumH2-1})` }]);
   sheet2.getRow(rowNumH2).font = { bold: true };
 
 
@@ -188,16 +193,16 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       s.label,
       totalCobrado,
       parteCobrador,
-      { formula: `=B${rowNumH3}-C${rowNumH3}` }
+      { formula: `B${rowNumH3}-C${rowNumH3}` }
     ]);
     rowNumH3++;
   });
 
   sheet3.addRow([
     "TOTALES",
-    { formula: `=SUM(B2:B${rowNumH3-1})` },
-    { formula: `=SUM(C2:C${rowNumH3-1})` },
-    { formula: `=SUM(D2:D${rowNumH3-1})` }
+    { formula: `SUM(B2:B${rowNumH3-1})` },
+    { formula: `SUM(C2:C${rowNumH3-1})` },
+    { formula: `SUM(D2:D${rowNumH3-1})` }
   ]);
   sheet3.getRow(rowNumH3).font = { bold: true };
 
