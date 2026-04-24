@@ -444,7 +444,7 @@ const uploadToStorage = async (
     .upload(path, buffer, {
       contentType:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      upsert: false,
+      upsert: true,
     });
   if (error) throw new Error(`uploadToStorage failed: ${error.message}`);
   return path;
@@ -644,7 +644,8 @@ interface RunBackupResult {
 
 const runBackup = async (
   supabase: ReturnType<typeof createClient>,
-  tipo_disparo: "cron" | "manual" | "test"
+  tipo_disparo: "cron" | "manual" | "test",
+  mode: string | null = null
 ): Promise<RunBackupResult> => {
   const start = Date.now();
   const now = new Date();
@@ -656,7 +657,7 @@ const runBackup = async (
   const lastBackup = await getLastSuccessfulBackup(supabase);
   const changed    = await hasChanges(supabase, lastBackup);
 
-  if (!changed) {
+  if (!changed && mode !== "download") {
     console.log("Backup omitido: sin cambios desde el último backup.");
     
     // Notificación Telegram — sin cambios
@@ -765,8 +766,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const result = await runBackup(supabase, tipoDisparo);
+    const result = await runBackup(supabase, tipoDisparo, mode);
 
+    // Si skipped (ej: cron sin cambios), devolver json
     if (result.status === "skipped") {
       return new Response(
         JSON.stringify({ status: "skipped", message: result.message }),
