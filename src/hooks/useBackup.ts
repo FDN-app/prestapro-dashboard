@@ -21,7 +21,7 @@ export function useBackup() {
   // Triggers the Edge Function manually
   const triggerServerBackup = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('backup-job', {
+      const { data, error } = await supabase.functions.invoke('backup-manager', {
         method: 'POST'
       });
       if (error) throw error;
@@ -36,7 +36,7 @@ export function useBackup() {
 
   const getDownloadUrl = async (filename: string) => {
     try {
-      const { data, error } = await supabase.storage.from('prestapro-backups').createSignedUrl(filename, 60);
+      const { data, error } = await supabase.storage.from('backups').createSignedUrl(`xlsx/${filename}`, 60);
       if (error) throw error;
       if (data?.signedUrl) {
         const link = document.createElement('a');
@@ -49,6 +49,52 @@ export function useBackup() {
       }
     } catch (e: any) {
       toast.error('Error de descarga: ' + e.message);
+    }
+  };
+
+  const downloadSebastianFormat = async () => {
+    const loadingId = toast.loading('Generando Excel Formato Sebastián...');
+    try {
+      const { data, error } = await supabase.functions.invoke('backup-manager', {
+        method: 'POST',
+        query: { mode: 'download', formato: 'sebastian' }
+      });
+      
+      if (error) throw error;
+      
+      // If it returned a blob (when using functions-js, sometimes we need to handle it differently)
+      // But we can just use the public URL or signed url if it's already saved, but the edge function returns the file
+      // Supabase invoke might not handle binary response cleanly. Let's do a direct fetch if needed, 
+      // or we can use the signed URL since the edge function saves it!
+      // Actually, if mode=download, edge function returns binary. `supabase.functions.invoke` parses JSON by default.
+      // We can use a direct fetch or signed url.
+      // Let's use direct fetch with the auth header.
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backup-manager?mode=download&formato=sebastian`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Error en la descarga del Excel');
+      
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `Formato_Sebastian_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+      
+      toast.success('Excel descargado correctamente', { id: loadingId });
+    } catch (e: any) {
+      toast.error('Error generando Excel: ' + e.message, { id: loadingId });
     }
   };
 
@@ -264,6 +310,7 @@ export function useBackup() {
     triggerServerBackup: triggerServerBackup.mutateAsync,
     isTriggering: triggerServerBackup.isPending,
     getDownloadUrl,
+    downloadSebastianFormat,
     processRestoreFile,
     executeRestore
   };

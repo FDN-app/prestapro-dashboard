@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 import ExcelJS from "npm:exceljs@4.4.0";
+import { buildSebastianWorkbook } from "./sebastianFormat.ts";
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 // TODO: actualizar con dominio definitivo de Vercel antes de producción
@@ -434,9 +435,10 @@ const hasChanges = async (
 const uploadToStorage = async (
   supabase: ReturnType<typeof createClient>,
   buffer: ArrayBuffer,
-  filename: string
+  filename: string,
+  subfolder: string = "xlsx"
 ): Promise<string> => {
-  const path = `xlsx/${filename}`;
+  const path = `${subfolder}/${filename}`;
   const { error } = await supabase.storage
     .from("backups")
     .upload(path, buffer, {
@@ -452,6 +454,7 @@ interface BackupRecord {
   nombre_archivo: string;
   ruta_bucket: string | null;
   tamano_bytes: number | null;
+  formato_sebastian_path: string | null;
   estado: "success" | "failed" | "skipped_no_changes";
   mensaje_error: string | null;
   duracion_ms: number;
@@ -541,19 +544,30 @@ const applyRetentionPolicy = async (
   supabase: ReturnType<typeof createClient>
 ): Promise<void> => {
   try {
-    // Listar todos los archivos en backups/xlsx/
-    const { data: files, error } = await supabase.storage
+    // Listar todos los archivos en backups/xlsx/ y backups/sebastian/
+    const { data: filesXlsx, error: err1 } = await supabase.storage
       .from("backups")
       .list("xlsx", { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
 
-    if (error || !files || files.length === 0) return;
+    const { data: filesSebas, error: err2 } = await supabase.storage
+      .from("backups")
+      .list("sebastian", { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+
+    if (err1 || err2) return;
+
+    type FileEntry = { name: string; created_at: string | null; folder: string };
+    const allFiles: FileEntry[] = [
+      ...(filesXlsx || []).map(f => ({ ...f, folder: "xlsx" })),
+      ...(filesSebas || []).map(f => ({ ...f, folder: "sebastian" }))
+    ];
+
+    if (allFiles.length === 0) return;
 
     const now = new Date();
     const toKeep = new Set<string>();
 
     // Agrupar por fecha (YYYY-MM-DD extraído del nombre)
-    type FileEntry = { name: string; created_at: string | null };
-    const sorted = (files as FileEntry[]).sort(
+    const sorted = allFiles.sort(
       (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     );
 
@@ -569,7 +583,7 @@ const applyRetentionPolicy = async (
 
     for (const f of sorted) {
       const created = new Date(f.created_at ?? 0);
-      const path    = `xlsx/${f.name}`;
+      const path    = `${f.folder}/${f.name}`;
 
       if (created >= sevenDaysAgo) {
         // Zona 1: conservar todos
@@ -593,8 +607,8 @@ const applyRetentionPolicy = async (
     }
 
     // Eliminar los que no están en toKeep
-    const toDelete = (sorted as FileEntry[])
-      .map((f) => `xlsx/${f.name}`)
+    const toDelete = sorted
+      .map((f) => `${f.folder}/${f.name}`)
       .filter((p) => !toKeep.has(p));
 
     if (toDelete.length === 0) return;
@@ -625,6 +639,7 @@ interface RunBackupResult {
   registros?: Record<string, number>;
   message?: string;
   buffer?: ArrayBuffer;
+  bufferSebas?: ArrayBuffer;
 }
 
 const runBackup = async (
@@ -652,6 +667,7 @@ const runBackup = async (
       nombre_archivo: filename,
       ruta_bucket: null,
       tamano_bytes: null,
+      formato_sebastian_path: null,
       estado: "skipped_no_changes",
       mensaje_error: null,
       duracion_ms: Date.now() - start,
@@ -665,9 +681,13 @@ const runBackup = async (
   const data   = await fetchAllData(supabase);
   const counts = getRecordCounts(data);
   const buffer = await buildWorkbook(data);
+  const bufferSebas = await buildSebastianWorkbook(data);
 
   // 3. Subir al bucket
-  const ruta = await uploadToStorage(supabase, buffer, filename);
+  const ruta = await uploadToStorage(supabase, buffer, filename, "xlsx");
+  
+  const filenameSebas = `Formato_Sebastian_${fecha}_${hora}.xlsx`;
+  const rutaSebas = await uploadToStorage(supabase, bufferSebas, filenameSebas, "sebastian");
 
   const duracion_ms = Date.now() - start;
 
@@ -676,6 +696,7 @@ const runBackup = async (
     nombre_archivo: filename,
     ruta_bucket: ruta,
     tamano_bytes: buffer.byteLength,
+    formato_sebastian_path: rutaSebas,
     estado: "success",
     mensaje_error: null,
     duracion_ms,
@@ -683,7 +704,7 @@ const runBackup = async (
     registros_exportados: counts,
   });
 
-  console.log(`Backup exitoso: ${filename} (${buffer.byteLength} bytes, ${duracion_ms}ms)`);
+  console.log(`Backup exitoso: ${filename} y ${filenameSebas} (${duracion_ms}ms)`);
 
   // 5. Notificación Telegram — éxito
   const totalReg = Object.values(counts).reduce((s, n) => s + n, 0);
@@ -710,6 +731,7 @@ const runBackup = async (
     duracion_ms,
     registros: counts,
     buffer,
+    bufferSebas,
   };
 };
 
@@ -752,17 +774,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ?mode=download: devuelve el .xlsx directamente (ya fue subido al bucket)
-    if (mode === "download" && result.buffer) {
-      return new Response(result.buffer, {
-        headers: {
-          ...corsHeaders(origin),
-          "Content-Type":
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename="${result.filename}"`,
-        },
-        status: 200,
-      });
+    // ?mode=download: devuelve el .xlsx
+    if (mode === "download") {
+      const isSebastian = url.searchParams.get("formato") === "sebastian";
+      const targetBuffer = isSebastian ? result.bufferSebas : result.buffer;
+      const downloadName = isSebastian ? `Formato_Sebastian_${new Date().toISOString().slice(0, 10)}.xlsx` : result.filename;
+      
+      if (targetBuffer) {
+        return new Response(targetBuffer, {
+          headers: {
+            ...corsHeaders(origin),
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": `attachment; filename="${downloadName}"`,
+          },
+          status: 200,
+        });
+      }
     }
 
     // Default: JSON con estado y ruta del bucket
