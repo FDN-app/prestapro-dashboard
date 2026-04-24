@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 export function useBackup() {
   const queryClient = useQueryClient();
   const [isExporting, setIsExporting] = useState(false);
+  const [isDownloadingSebas, setIsDownloadingSebas] = useState(false);
 
   // Lists automated backups from storage
   const cloudBackups = useQuery({
@@ -53,6 +54,7 @@ export function useBackup() {
   };
 
   const downloadSebastianFormat = async () => {
+    setIsDownloadingSebas(true);
     const loadingId = toast.loading('Generando Excel Formato Sebastián...');
     try {
       const { data, error } = await supabase.functions.invoke('backup-manager', {
@@ -95,6 +97,8 @@ export function useBackup() {
       toast.success('Excel descargado correctamente', { id: loadingId });
     } catch (e: any) {
       toast.error('Error generando Excel: ' + e.message, { id: loadingId });
+    } finally {
+      setIsDownloadingSebas(false);
     }
   };
 
@@ -311,6 +315,7 @@ export function useBackup() {
     isTriggering: triggerServerBackup.isPending,
     getDownloadUrl,
     downloadSebastianFormat,
+    isDownloadingSebas,
     processRestoreFile,
     executeRestore
   };

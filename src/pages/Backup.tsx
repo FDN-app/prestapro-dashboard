@@ -8,7 +8,8 @@ export default function Backup() {
   const { 
     exportData, exportProfessionalExcel, isExporting, 
     cloudBackups, isCloudLoading, triggerServerBackup, isTriggering,
-    getDownloadUrl, processRestoreFile, executeRestore 
+    getDownloadUrl, processRestoreFile, executeRestore,
+    downloadSebastianFormat, isDownloadingSebas
   } = useBackup();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,15 +81,21 @@ export default function Backup() {
             )}
           </div>
 
-          <div className="w-full flex flex-col sm:flex-row gap-4 pt-4 border-t border-border/50">
+          <div className="w-full flex flex-col lg:flex-row gap-4 pt-4 border-t border-border/50 items-start lg:items-center">
             <div className="flex-1">
               <p className="text-sm font-semibold mb-1">Exportación Especial</p>
               <p className="text-xs text-muted-foreground">Genera una planilla completa lista para trabajar, con hojas para Clientes, Préstamos, Cuotas y Pagos.</p>
             </div>
-            <Button onClick={exportProfessionalExcel} disabled={isExporting} className="gap-2 bg-status-green hover:bg-status-green/90 text-white font-bold px-6">
-              <FileSpreadsheet size={18} />
-              {isExporting ? 'Generando...' : 'DESCARGAR PLANILLA INTEGRAL (EXCEL)'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+              <Button onClick={exportProfessionalExcel} disabled={isExporting} className="gap-2 bg-status-green hover:bg-status-green/90 text-white font-bold px-6">
+                <FileSpreadsheet size={18} />
+                {isExporting ? 'Generando...' : 'DESCARGAR PLANILLA INTEGRAL (EXCEL)'}
+              </Button>
+              <Button onClick={downloadSebastianFormat} disabled={isDownloadingSebas} variant="secondary" className="gap-2 px-6">
+                {isDownloadingSebas ? <RefreshCw size={18} className="animate-spin" /> : <FileSpreadsheet size={18} />}
+                {isDownloadingSebas ? 'Descargando...' : 'Descargar Formato Sebastián'}
+              </Button>
+            </div>
           </div>
         </div>
 
