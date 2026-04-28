@@ -3,7 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import {
-  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity, CreditCard
+  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity, CreditCard, Bot
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ const adminNav = [
   { label: 'Backups', icon: DatabaseBackup, path: '/backups' },
   { label: 'Suscripción', icon: CreditCard, path: '/suscripcion' },
   { label: 'Configuración', icon: Settings, path: '/configuracion' },
+  { label: 'Asistente IA', icon: Bot, path: '/asistente' },
 ];
 
 const collectorNav = [

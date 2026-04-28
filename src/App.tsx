@@ -19,6 +19,7 @@ import SettingsPage from "./pages/Settings";
 import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
 import Subscriptions from "./pages/Subscriptions";
+import AsistenteIA from "./pages/AsistenteIA";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/backups" element={<AppLayout><Backup /></AppLayout>} />
             <Route path="/cobros-pendientes" element={<AppLayout><CollectorPending /></AppLayout>} />
             <Route path="/suscripcion" element={<AppLayout><Subscriptions /></AppLayout>} />
+            <Route path="/asistente" element={<AppLayout><AsistenteIA /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
