@@ -96,9 +96,6 @@ export default function AsistenteIA() {
       const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }));
       const apiMessages = [...history, { role: userMsg.role, content: userMsg.content }];
 
-      console.log('API KEY presente:', !!import.meta.env.VITE_OPENAI_API_KEY);
-      console.log('Primeros 8 chars:', import.meta.env.VITE_OPENAI_API_KEY?.slice(0, 8));
-
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -118,18 +115,13 @@ export default function AsistenteIA() {
         }),
       });
 
-      if (!res.ok) {
-        const errorBody = await res.text();
-        console.error('API Error body:', errorBody);
-        throw new Error(`HTTP ${res.status}: ${errorBody}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const reply = data.choices?.[0]?.message?.content ?? 'No pude generar una respuesta.';
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {
-      console.error('Error completo:', err);
-      console.error('Response status:', (err as any)?.status);
+      console.error('AsistenteIA error:', err);
       setMessages(prev => [
         ...prev,
         {
