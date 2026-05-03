@@ -63,7 +63,10 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   // Forzar valor de A1 por seguridad
   sheet1.getCell('A1').value = "Nombre";
 
-  const prestamosActivosYMora = data.prestamos.filter((p: any) => p.estado === "activo" || p.estado === "mora");
+  const prestamosActivosYMora = data.prestamos.filter((p: any) => {
+    const st = String(p.estado || "").trim().toLowerCase();
+    return st === "activo" || st === "mora";
+  });
 
   let rowNum = 2;
   for (const p of prestamosActivosYMora) {
@@ -96,7 +99,9 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
     // Llenar semanas
     semanas.forEach(s => {
       const pagosSemana = pagosPrestamo.filter((pag: any) => {
-        const d = new Date(pag.fecha_pago).getTime();
+        const fecha = pag.fecha_pago || pag.created_at;
+        if (!fecha) return false;
+        const d = new Date(fecha).getTime();
         return d >= s.start && d <= s.end;
       });
       const sum = pagosSemana.reduce((acc: number, curr: any) => acc + Number(curr.monto_pagado || 0), 0);
@@ -129,7 +134,9 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   semanas.forEach(s => {
     // Buscar pagos en esa semana
     const pagosSemana = data.pagos.filter((pag: any) => {
-      const d = new Date(pag.fecha_pago).getTime();
+      const fecha = pag.fecha_pago || pag.created_at;
+      if (!fecha) return false;
+      const d = new Date(fecha).getTime();
       return d >= s.start && d <= s.end;
     });
 
@@ -160,7 +167,9 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   let rowNumH3 = 2;
   semanas.forEach(s => {
     const pagosSemana = data.pagos.filter((pag: any) => {
-      const d = new Date(pag.fecha_pago).getTime();
+      const fecha = pag.fecha_pago || pag.created_at;
+      if (!fecha) return false;
+      const d = new Date(fecha).getTime();
       return d >= s.start && d <= s.end;
     });
 
