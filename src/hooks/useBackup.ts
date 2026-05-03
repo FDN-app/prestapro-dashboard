@@ -164,6 +164,41 @@ export function useBackup() {
     }
   };
 
+  const uploadSebastianExcel = async (file: File, accion: 'preview' | 'reemplazar' | 'agregar'): Promise<any> => {
+    const loadingId = toast.loading(accion === 'preview' ? 'Analizando archivo...' : 'Importando archivo original...');
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('accion', accion);
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/importar-excel-sebastian`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Error en la petición');
+
+      if (accion !== 'preview') {
+        toast.success(accion === 'reemplazar' ? 'Base reemplazada con éxito' : 'Datos agregados con éxito', { id: loadingId });
+        queryClient.invalidateQueries();
+      } else {
+        toast.dismiss(loadingId);
+      }
+
+      return result;
+    } catch (e: any) {
+      toast.error('Error procesando Excel: ' + (e?.message || String(e)), { id: loadingId });
+      throw e;
+    }
+  };
 
   const exportData = async () => {
     setIsExporting(true);
@@ -317,6 +352,7 @@ export function useBackup() {
     downloadSebastianFormat,
     isDownloadingSebas,
     processRestoreFile,
-    executeRestore
+    executeRestore,
+    uploadSebastianExcel
   };
 }

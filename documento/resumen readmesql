@@ -1,0 +1,7 @@
+[2026-04-26] Migración PrestaPro — STAGING validado
+- Excel de muestra (09_al_14.xlsx) procesado: 49 vivos / 12 renovados
+- Script Python + SQL generador funcionando
+- Schema + RPCs + triggers cargan limpio en proyecto nuevo
+- Próximo: cuando llegue Excel real → repetir flujo apuntando a producción
+- Proyecto staging: prestapro-staging (tanomanfer33@gmail.com)
+- Archivos clave: migracion_prestapro.sql, reporte_migracion.md, parser.py
