@@ -14,24 +14,35 @@ export default function Backup() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoreSummary, setRestoreSummary] = useState<Record<string, number> | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
     try {
-      const summary = await processRestoreFile(file) as Record<string, number>;
+      const data = await processRestoreFile(file);
+      const summary: Record<string, number> = {};
+      Object.entries(data).forEach(([key, arr]) => {
+        summary[key] = Array.isArray(arr) ? arr.length : 0;
+      });
       setRestoreSummary(summary);
+      setSelectedFile(file);
     } catch (e: any) {
-      toast.error('Error leyendo Excel: ' + e.message);
+      toast.error('Error leyendo Excel: ' + (e?.message || String(e)));
+      setRestoreSummary(null);
+      setSelectedFile(null);
     }
     // reset input so the same file can be selected again if needed
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const confirmRestore = () => {
-    executeRestore();
+    if (selectedFile) {
+      executeRestore(selectedFile);
+    }
     setRestoreSummary(null);
+    setSelectedFile(null);
   };
 
   return (

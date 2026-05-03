@@ -32,7 +32,7 @@ export function useBackup() {
       toast.success('Backup en servidor completado');
       queryClient.invalidateQueries({ queryKey: ['backups'] });
     },
-    onError: (e: any) => toast.error('Error: ' + e.message)
+    onError: (e: any) => toast.error('Error: ' + (e?.message || String(e)))
   });
 
   const getDownloadUrl = async (filename: string) => {
@@ -49,7 +49,7 @@ export function useBackup() {
         document.body.removeChild(link);
       }
     } catch (e: any) {
-      toast.error('Error de descarga: ' + e.message);
+      toast.error('Error de descarga: ' + (e?.message || String(e)));
     }
   };
 
@@ -96,7 +96,7 @@ export function useBackup() {
       
       toast.success('Excel descargado correctamente', { id: loadingId });
     } catch (e: any) {
-      toast.error('Error generando Excel: ' + e.message, { id: loadingId });
+      toast.error('Error generando Excel: ' + (e?.message || String(e)), { id: loadingId });
     } finally {
       setIsDownloadingSebas(false);
     }
@@ -159,7 +159,7 @@ export function useBackup() {
     } catch (e: any) {
       toast.error('Fallo en la restauración', {
         id: loadingId,
-        description: e.message
+        description: e?.message || String(e)
       });
     }
   };
@@ -195,7 +195,7 @@ export function useBackup() {
       
       toast.success('Backup exportado exitosamente');
     } catch (e: any) {
-      toast.error('Error durante el backup: ' + e.message);
+      toast.error('Error durante el backup: ' + (e?.message || String(e)));
     } finally {
       setIsExporting(false);
     }
@@ -299,7 +299,7 @@ export function useBackup() {
       XLSX.writeFile(wb, `Planilla_PrestaPro_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Excel profesional exportado');
     } catch (e: any) {
-      toast.error('Error exportando Excel: ' + e.message);
+      toast.error('Error exportando Excel: ' + (e?.message || String(e)));
     } finally {
       setIsExporting(false);
     }
