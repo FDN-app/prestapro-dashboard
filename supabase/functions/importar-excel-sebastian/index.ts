@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
 
-    const sheet = workbook.worksheets[0]; // Hoja principal
+    const sheet = workbook.getWorksheet("Hoja1") || workbook.worksheets[0]; // Hoja principal
     if (!sheet) throw new Error("El archivo no tiene hojas.");
 
     // Filas 1 y 2 ignoradas
