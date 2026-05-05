@@ -80,8 +80,10 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
 
     const interes = (Number(p.monto_original || 0) * Number(p.tasa_interes || 0)) / 100;
     
+    const nombreExportar = cliente.nombre_original_excel || cliente.nombre_completo || "";
+
     const rowValues = [
-      cliente.nombre_completo || "",
+      nombreExportar,
       cliente.dni || "",
       "", // Columna legacy vacía
       { formula: `E${rowNum}+F${rowNum}-K${rowNum}` }, // Saldo

@@ -13,9 +13,18 @@ export function useBackup() {
   const cloudBackups = useQuery({
     queryKey: ['backups'],
     queryFn: async () => {
-      const { data, error } = await supabase.storage.from('prestapro-backups').list();
+      const { data, error } = await supabase.from('backup_history').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      return data?.filter(f => f.name.endsWith('.xlsx')) || [];
+      return data;
+    }
+  });
+
+  const excelOriginales = useQuery({
+    queryKey: ['excel_originales'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('excel_originales').select('*').order('uploaded_at', { ascending: false });
+      if (error) throw error;
+      return data;
     }
   });
 
@@ -38,6 +47,24 @@ export function useBackup() {
   const getDownloadUrl = async (filename: string) => {
     try {
       const { data, error } = await supabase.storage.from('backups').createSignedUrl(`xlsx/${filename}`, 60);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        const link = document.createElement('a');
+        link.href = data.signedUrl;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (e: any) {
+      toast.error('Error de descarga: ' + (e?.message || String(e)));
+    }
+  };
+
+  const getOriginalDownloadUrl = async (filename: string) => {
+    try {
+      const { data, error } = await supabase.storage.from('excel-originales').createSignedUrl(filename, 60);
       if (error) throw error;
       if (data?.signedUrl) {
         const link = document.createElement('a');
@@ -348,9 +375,12 @@ export function useBackup() {
     isExporting, 
     cloudBackups: cloudBackups.data || [],
     isCloudLoading: cloudBackups.isLoading,
+    excelOriginales: excelOriginales.data || [],
+    isOriginalesLoading: excelOriginales.isLoading,
     triggerServerBackup: triggerServerBackup.mutateAsync,
     isTriggering: triggerServerBackup.isPending,
     getDownloadUrl,
+    getOriginalDownloadUrl,
     downloadSebastianFormat,
     isDownloadingSebas,
     processRestoreFile,

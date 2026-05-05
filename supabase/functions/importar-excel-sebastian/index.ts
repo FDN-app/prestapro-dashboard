@@ -42,6 +42,26 @@ Deno.serve(async (req) => {
     }
 
     const buffer = await file.arrayBuffer();
+    
+    // Guardar copia del archivo original
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `excel-original-${timestamp}.xlsx`;
+    const { error: uploadError } = await supabase.storage.from('excel-originales').upload(filename, buffer, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      upsert: false
+    });
+
+    if (uploadError) {
+      console.error("Error subiendo archivo original a Storage:", uploadError);
+      // No frenamos la ejecución, pero lo logueamos
+    } else {
+      await supabase.from('excel_originales').insert({
+        filename: filename,
+        uploaded_by: userId || null,
+        size_bytes: buffer.byteLength
+      });
+    }
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
 
@@ -56,21 +76,24 @@ Deno.serve(async (req) => {
 
     const currentYear = new Date().getFullYear();
 
+    let startWeeks = false;
     headersRow.eachCell((cell, colNumber) => {
       const val = String(cell.value || "").trim();
       if (!val) return;
       
       headerMap[val.toLowerCase()] = colNumber;
+      if (val.toLowerCase().includes("total semanales")) {
+        startWeeks = true;
+      }
 
       // Buscar si es columna de semana, ej "22/12 al 27/12"
-      const weekMatch = val.match(/^(\d{1,2})\/(\d{1,2})\s+al\s+(\d{1,2})\/(\d{1,2})$/i);
-      if (weekMatch) {
+      // Relaxed regex para lidiar con espacios extra
+      const weekMatch = val.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*al\s*(\d{1,2})\s*\/\s*(\d{1,2})$/i);
+      if (startWeeks && weekMatch) {
         const startDay = parseInt(weekMatch[1], 10);
         const startMonth = parseInt(weekMatch[2], 10) - 1; // 0-indexed
         
         let year = currentYear;
-        // Inferir año. Si estamos parseando y vemos algo de un mes mayor y luego salta a 1 (ej dic a enero)
-        // Por ahora, asumimos el currentYear a menos que necesitemos algo complejo.
         const startDate = new Date(year, startMonth, startDay, 12, 0, 0);
         
         semanasMap.push({
@@ -80,6 +103,9 @@ Deno.serve(async (req) => {
         });
       }
     });
+
+    console.log('Headers fila 3:', headersRow.values);
+    console.log('Total columnas semanales:', semanasMap.length);
 
     // Ajustar años de semanas consecutivas para el cruce de diciembre a enero
     // Si vemos que el mes de una semana es menor al anterior por mucho (ej diciembre -> enero), avanzamos el año
@@ -127,11 +153,12 @@ Deno.serve(async (req) => {
       if (!nombreCell || nombreCell.toLowerCase() === "totales") continue;
 
       // Parseo nombre y tasa (ej "Mirta 35%")
-      let nombre = nombreCell;
+      const nombreCrudoDelExcel = nombreCell;
+      let nombreLimpio = nombreCell;
       let tasaInteres = 0;
       const match = nombreCell.match(/^(.*?)\s*(\d+)%?$/);
       if (match) {
-        nombre = match[1].trim();
+        nombreLimpio = match[1].trim();
         tasaInteres = parseFloat(match[2]);
       }
 
@@ -177,7 +204,8 @@ Deno.serve(async (req) => {
       const clienteId = uuidv4();
       clientes.push({
         id: clienteId,
-        nombre_completo: nombre,
+        nombre_completo: nombreLimpio,
+        nombre_original_excel: nombreCrudoDelExcel,
         dni: dni,
         telefono: "PENDIENTE",
         estado: "activo",
@@ -304,6 +332,8 @@ Deno.serve(async (req) => {
     console.log('Primera fila datos clientes:', clientes[0]);
     console.log('Primer préstamo:', prestamos[0]);
     console.log('Primer pago:', pagos[0]);
+
+    console.log('Pagos para Mirta:', pagos.filter(p => clientes.find(c => c.id === p.prestamo_id && c.nombre_completo.toLowerCase().includes('mirta'))));
 
     // VALIDACIÓN PRE-RPC obligatoria
     const validateNotNull = (arr: any[], fields: string[], entity: string) => {

@@ -8,6 +8,7 @@ export default function Backup() {
   const { 
     exportData, exportProfessionalExcel, isExporting, 
     cloudBackups, isCloudLoading, triggerServerBackup, isTriggering,
+    excelOriginales, isOriginalesLoading, getOriginalDownloadUrl,
     getDownloadUrl, processRestoreFile, executeRestore,
     downloadSebastianFormat, isDownloadingSebas, uploadSebastianExcel
   } = useBackup();
@@ -137,6 +138,43 @@ export default function Backup() {
                 {isDownloadingSebas ? 'Descargando...' : 'Descargar Formato Sebastián'}
               </Button>
             </div>
+          </div>
+        </div>
+
+        {/* Excel Originales de Sebastián */}
+        <div className="bg-card rounded-lg border border-border p-6 flex flex-col gap-4 items-start shadow-sm md:col-span-2">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-500/10 rounded-full text-indigo-500">
+              <HardDriveUpload size={24} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Excel Originales de Sebastián</h3>
+              <p className="text-sm text-muted-foreground">Archivos originales intocables subidos para importación.</p>
+            </div>
+          </div>
+          
+          <div className="w-full bg-secondary/50 rounded-md overflow-hidden border border-border mt-2">
+            {isOriginalesLoading ? (
+              <p className="p-4 text-sm text-muted-foreground text-center">Cargando historiales...</p>
+            ) : excelOriginales.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground text-center">No hay archivos originales subidos aún.</p>
+            ) : (
+              <div className="flex flex-col max-h-[250px] overflow-y-auto">
+                {excelOriginales.map((f: any) => (
+                  <div key={f.id} className="flex justify-between items-center p-3 border-b border-border last:border-0 hover:bg-secondary/80 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{f.filename}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(f.uploaded_at).toLocaleString()} • {(f.size_bytes / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => getOriginalDownloadUrl(f.filename)}>
+                      Descargar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
