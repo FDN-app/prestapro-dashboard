@@ -82,7 +82,7 @@ BEGIN
             (v_pago->>'id')::UUID,
             (v_pago->>'prestamo_id')::UUID,
             (v_pago->>'cuota_id')::UUID,
-            (SELECT id FROM perfiles WHERE rol = 'admin' LIMIT 1),
+            COALESCE((v_pago->>'cobrador_id')::UUID, (SELECT id FROM perfiles WHERE rol = 'admin' LIMIT 1)),
             (v_pago->>'monto_pagado')::DECIMAL,
             v_pago->>'metodo_pago',
             (v_pago->>'fecha_pago')::TIMESTAMP,

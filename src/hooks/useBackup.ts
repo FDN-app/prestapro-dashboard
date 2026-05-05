@@ -169,10 +169,12 @@ export function useBackup() {
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
+      const userId = session.data.session?.user?.id;
       
       const formData = new FormData();
       formData.append('file', file);
       formData.append('accion', accion);
+      if (userId) formData.append('userId', userId);
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/importar-excel-sebastian`;
       const response = await fetch(url, {

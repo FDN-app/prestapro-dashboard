@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
     const formData = await req.formData();
     const file = formData.get("file");
     const accion = formData.get("accion") as string;
+    const userId = formData.get("userId") as string;
 
     if (!file || !(file instanceof File)) {
       throw new Error("No se proporcionó un archivo válido.");
@@ -291,6 +292,7 @@ Deno.serve(async (req) => {
           id: uuidv4(),
           prestamo_id: prestamoId,
           cuota_id: cuotaCercana.id,
+          cobrador_id: userId || null,
           monto_pagado: pago.monto,
           fecha_pago: pago.fecha.toISOString(),
           metodo_pago: "efectivo"
@@ -318,7 +320,7 @@ Deno.serve(async (req) => {
     validateNotNull(clientes, ['id', 'nombre_completo', 'dni', 'telefono'], 'clientes');
     validateNotNull(prestamos, ['id', 'cliente_id', 'monto_original', 'saldo_pendiente', 'cantidad_cuotas', 'frecuencia_pago', 'fecha_inicio'], 'prestamos');
     validateNotNull(cuotas, ['id', 'prestamo_id', 'numero_cuota', 'monto_cuota', 'fecha_vencimiento'], 'cuotas');
-    validateNotNull(pagos, ['id', 'prestamo_id', 'cobrador_id', 'monto_pagado', 'metodo_pago', 'fecha_pago'], 'pagos');
+    validateNotNull(pagos, ['id', 'prestamo_id', 'monto_pagado', 'metodo_pago', 'fecha_pago'], 'pagos');
 
     const resultStats = {
       clientes: clientes.length,
