@@ -21,11 +21,12 @@ BEGIN
     -- 1. Insertar Clientes
     FOR v_cliente IN SELECT * FROM jsonb_array_elements(p_clientes)
     LOOP
-        INSERT INTO clientes (id, nombre_completo, dni, estado)
+        INSERT INTO clientes (id, nombre_completo, dni, telefono, estado)
         VALUES (
             (v_cliente->>'id')::UUID,
             v_cliente->>'nombre_completo',
             v_cliente->>'dni',
+            v_cliente->>'telefono',
             v_cliente->>'estado'
         )
         ON CONFLICT (dni) DO UPDATE SET estado = EXCLUDED.estado;

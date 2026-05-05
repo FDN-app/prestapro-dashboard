@@ -164,6 +164,7 @@ Deno.serve(async (req) => {
         id: clienteId,
         nombre_completo: nombre,
         dni: dni,
+        telefono: "PENDIENTE",
         estado: "activo",
       });
 
