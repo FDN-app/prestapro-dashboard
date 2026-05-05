@@ -96,14 +96,14 @@ export default function AsistenteIA() {
       const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }));
       const apiMessages = [...history, { role: userMsg.role, content: userMsg.content }];
 
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'deepseek-chat',
           max_tokens: 1024,
           messages: [
             {
