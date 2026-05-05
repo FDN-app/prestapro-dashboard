@@ -8,9 +8,20 @@ const formatDate = (date: Date): string => {
 };
 
 // Generar las últimas 12 semanas (lunes a domingo)
-const getSemanas = () => {
+const getSemanas = (data: any) => {
+  // Encontrar la fecha más reciente en pagos (o usar hoy si no hay)
+  let fechaReferencia = new Date();
+  if (data.pagos && data.pagos.length > 0) {
+    const fechas = data.pagos
+      .map((p: any) => new Date(p.fecha_pago || p.created_at).getTime())
+      .filter((t: number) => !isNaN(t));
+    if (fechas.length > 0) {
+      fechaReferencia = new Date(Math.max(...fechas));
+    }
+  }
+  
   const w = [];
-  const currDate = new Date();
+  const currDate = new Date(fechaReferencia);
   const day = currDate.getDay() || 7; 
   currDate.setDate(currDate.getDate() - (day - 1));
   currDate.setHours(0,0,0,0);
@@ -38,7 +49,7 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   wb.creator = "PrestaPro";
   wb.created = new Date();
 
-  const semanas = getSemanas();
+  const semanas = getSemanas(data);
 
   // ─── HOJA 1: RC JORGE ───────────────────────────────────────────────
   const sheet1 = wb.addWorksheet("RC Jorge");
