@@ -111,9 +111,18 @@ Deno.serve(async (req) => {
     const pagos: any[] = [];
 
     // Fila 4 en adelante
+    const getCellValue = (cell: any): string => {
+      if (!cell) return "";
+      const val = cell.value;
+      if (val !== null && typeof val === "object" && "result" in val) {
+        return String(val.result || "");
+      }
+      return String(val || "");
+    };
+
     for (let rowNumber = 4; rowNumber <= sheet.rowCount; rowNumber++) {
       const row = sheet.getRow(rowNumber);
-      const nombreCell = String(row.getCell(idxNombre).value || "").trim();
+      const nombreCell = getCellValue(row.getCell(idxNombre)).trim();
       if (!nombreCell || nombreCell.toLowerCase() === "totales") continue;
 
       // Parseo nombre y tasa (ej "Mirta 35%")
@@ -125,20 +134,25 @@ Deno.serve(async (req) => {
         tasaInteres = parseFloat(match[2]);
       }
 
-      const creditoStr = String(row.getCell(idxCredito).value || "0");
+      const creditoStr = getCellValue(row.getCell(idxCredito));
       const creditoNum = parseFloat(creditoStr.replace(/[^\d.-]/g, ""));
       
-      const interesStr = idxInteres ? String(row.getCell(idxInteres).value || "0") : "0";
-      const interesNum = parseFloat(interesStr.replace(/[^\d.-]/g, ""));
+      if (isNaN(creditoNum) || creditoNum <= 0) {
+        console.warn(`[Fila ${rowNumber}] Saltando fila vacía o sin Crédito válido: ${nombreCell} (Crédito leído: '${creditoStr}')`);
+        continue;
+      }
+
+      const interesStr = idxInteres ? getCellValue(row.getCell(idxInteres)) : "0";
+      const interesNum = parseFloat(interesStr.replace(/[^\d.-]/g, "")) || 0;
 
       if (!tasaInteres && creditoNum > 0) {
         tasaInteres = Math.round((interesNum / creditoNum) * 100);
       }
 
-      let dni = idxCuil ? String(row.getCell(idxCuil).value || "").trim() : "";
+      let dni = idxCuil ? getCellValue(row.getCell(idxCuil)).trim() : "";
       if (!dni) dni = `IMP-${rowNumber}`;
 
-      let cuotasStr = idxCuotas ? String(row.getCell(idxCuotas).value || "0") : "1";
+      let cuotasStr = idxCuotas ? getCellValue(row.getCell(idxCuotas)) : "1";
       const cuotasNum = parseInt(cuotasStr.replace(/[^\d]/g, ""), 10) || 1;
 
       let fechaInicio = new Date();
@@ -189,9 +203,10 @@ Deno.serve(async (req) => {
       let totalPagado = 0;
 
       semanasMap.forEach(sem => {
-        const cellVal = row.getCell(sem.colIdx).value;
-        if (cellVal !== null && cellVal !== undefined && cellVal !== "") {
-          const montoStr = String(cellVal).replace(/[^\d.-]/g, "");
+        const cell = row.getCell(sem.colIdx);
+        const cellValStr = getCellValue(cell).trim();
+        if (cellValStr !== "") {
+          const montoStr = cellValStr.replace(/[^\d.-]/g, "");
           const monto = parseFloat(montoStr);
           if (monto > 0) {
             pagosDeEstePrestamo.push({
@@ -282,6 +297,28 @@ Deno.serve(async (req) => {
         });
       });
     }
+
+    console.log('=== DIAGNÓSTICO PARSEO ===');
+    console.log('Primera fila datos clientes:', clientes[0]);
+    console.log('Primer préstamo:', prestamos[0]);
+    console.log('Primer pago:', pagos[0]);
+
+    // VALIDACIÓN PRE-RPC obligatoria
+    const validateNotNull = (arr: any[], fields: string[], entity: string) => {
+      for (const item of arr) {
+        for (const field of fields) {
+          if (item[field] === null || item[field] === undefined || (typeof item[field] === "number" && isNaN(item[field]))) {
+            console.error(`VALIDATION FAILED in ${entity}`, item);
+            throw new Error(`Importación rechazada: Un registro de ${entity} tiene el campo obligatorio '${field}' inválido o nulo. Revisa los logs.`);
+          }
+        }
+      }
+    };
+
+    validateNotNull(clientes, ['id', 'nombre_completo', 'dni', 'telefono'], 'clientes');
+    validateNotNull(prestamos, ['id', 'cliente_id', 'monto_original', 'saldo_pendiente', 'cantidad_cuotas', 'frecuencia_pago', 'fecha_inicio'], 'prestamos');
+    validateNotNull(cuotas, ['id', 'prestamo_id', 'numero_cuota', 'monto_cuota', 'fecha_vencimiento'], 'cuotas');
+    validateNotNull(pagos, ['id', 'prestamo_id', 'cobrador_id', 'monto_pagado', 'metodo_pago', 'fecha_pago'], 'pagos');
 
     const resultStats = {
       clientes: clientes.length,
