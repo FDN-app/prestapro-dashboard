@@ -178,6 +178,7 @@ Deno.serve(async (req) => {
         monto_original: creditoNum,
         tasa_interes: tasaInteres,
         cantidad_cuotas: cuotasNum,
+        frecuencia_pago: "semanal",
         fecha_inicio: fechaInicio.toISOString(),
         saldo_pendiente: totalAPagar,
         estado: "activo",
@@ -205,6 +206,7 @@ Deno.serve(async (req) => {
       // Generar cuotas automáticamente
       const montoPorCuota = totalAPagar / cuotasNum;
       let pagadoAcumulado = totalPagado;
+      const cuotasCreadas: any[] = [];
 
       for (let i = 1; i <= cuotasNum; i++) {
         const cuotaId = uuidv4();
@@ -222,7 +224,6 @@ Deno.serve(async (req) => {
           estadoCuota = "pagada";
           pagadoAcumulado -= montoPorCuota;
           
-          // Buscar qué pago cubrió esta cuota (aproximado, tomamos la fecha del último pago usado o el vencimiento)
           const pagoMasCercano = pagosDeEstePrestamo.find(p => p.fecha >= vencimiento) || pagosDeEstePrestamo[pagosDeEstePrestamo.length - 1];
           fechaPagoCuota = pagoMasCercano ? pagoMasCercano.fecha : vencimiento;
 
@@ -235,7 +236,7 @@ Deno.serve(async (req) => {
           fechaPagoCuota = pagoMasCercano ? pagoMasCercano.fecha : vencimiento;
         }
 
-        cuotas.push({
+        const nuevaCuota = {
           id: cuotaId,
           prestamo_id: prestamoId,
           numero_cuota: i,
@@ -244,7 +245,9 @@ Deno.serve(async (req) => {
           fecha_vencimiento: vencimiento.toISOString(),
           estado: estadoCuota,
           fecha_pago: fechaPagoCuota ? fechaPagoCuota.toISOString() : null
-        });
+        };
+        cuotas.push(nuevaCuota);
+        cuotasCreadas.push({ ...nuevaCuota, dt_vencimiento: vencimiento });
       }
 
       // Ajustar saldo pendiente del prestamo
@@ -258,9 +261,21 @@ Deno.serve(async (req) => {
 
       // Generar registros de pagos
       pagosDeEstePrestamo.forEach(pago => {
+        // Encontrar la cuota mas cercana (menor diferencia absoluta en tiempo)
+        let cuotaCercana = cuotasCreadas[0];
+        let diffMinima = Infinity;
+        for (const c of cuotasCreadas) {
+          const diff = Math.abs(c.dt_vencimiento.getTime() - pago.fecha.getTime());
+          if (diff < diffMinima) {
+            diffMinima = diff;
+            cuotaCercana = c;
+          }
+        }
+
         pagos.push({
           id: uuidv4(),
           prestamo_id: prestamoId,
+          cuota_id: cuotaCercana.id,
           monto_pagado: pago.monto,
           fecha_pago: pago.fecha.toISOString(),
           metodo_pago: "efectivo"

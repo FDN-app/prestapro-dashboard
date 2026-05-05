@@ -42,7 +42,7 @@ BEGIN
         END IF;
 
         INSERT INTO prestamos (
-            id, cliente_id, monto_original, saldo_pendiente, tasa_interes, cantidad_cuotas, fecha_inicio, estado
+            id, cliente_id, monto_original, saldo_pendiente, tasa_interes, cantidad_cuotas, frecuencia_pago, fecha_inicio, estado
         ) VALUES (
             (v_prestamo->>'id')::UUID,
             v_cliente_id,
@@ -50,6 +50,7 @@ BEGIN
             (v_prestamo->>'saldo_pendiente')::DECIMAL,
             (v_prestamo->>'tasa_interes')::DECIMAL,
             (v_prestamo->>'cantidad_cuotas')::INT,
+            v_prestamo->>'frecuencia_pago',
             (v_prestamo->>'fecha_inicio')::TIMESTAMP,
             v_prestamo->>'estado'
         );
@@ -76,10 +77,11 @@ BEGIN
     FOR v_pago IN SELECT * FROM jsonb_array_elements(p_pagos)
     LOOP
         INSERT INTO pagos (
-            id, prestamo_id, cobrador_id, monto_pagado, metodo_pago, fecha_pago, notas, destino_caja
+            id, prestamo_id, cuota_id, cobrador_id, monto_pagado, metodo_pago, fecha_pago, notas, destino_caja
         ) VALUES (
             (v_pago->>'id')::UUID,
             (v_pago->>'prestamo_id')::UUID,
+            (v_pago->>'cuota_id')::UUID,
             (SELECT id FROM perfiles WHERE rol = 'admin' LIMIT 1),
             (v_pago->>'monto_pagado')::DECIMAL,
             v_pago->>'metodo_pago',
