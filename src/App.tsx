@@ -20,6 +20,7 @@ import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
 import Subscriptions from "./pages/Subscriptions";
 import AsistenteIA from "./pages/AsistenteIA";
+import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/clientes" element={<AppLayout><Clients /></AppLayout>} />
             <Route path="/cliente/:id" element={<AppLayout><ClientDetail /></AppLayout>} />

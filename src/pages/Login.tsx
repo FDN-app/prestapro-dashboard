@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -57,6 +57,12 @@ export default function Login() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </Button>
         </form>
+        <p className="text-center text-sm text-muted-foreground">
+          ¿No tenés cuenta?{' '}
+          <Link to="/register" className="text-primary hover:underline font-medium">
+            Crear cuenta nueva
+          </Link>
+        </p>
       </div>
     </div>
   );
