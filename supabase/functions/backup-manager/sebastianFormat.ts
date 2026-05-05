@@ -51,35 +51,37 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
 
   const semanas = getSemanas(data);
 
-  // ─── HOJA 1: RC JORGE ───────────────────────────────────────────────
-  const sheet1 = wb.addWorksheet("RC Jorge");
+  // ─── HOJA 1 ───────────────────────────────────────────────
+  const sheet1 = wb.addWorksheet("Hoja1");
   
-  // Encabezados
-  const headerRow1 = [
+  // FILA 1: Título "RC Jorge"
+  sheet1.getCell('A1').value = "RC Jorge";
+  sheet1.getCell('A1').font = { bold: true, size: 16 };
+
+  // FILA 2: Vacía (o decorativa, la dejamos vacía)
+  sheet1.addRow([]);
+
+  // FILA 3: Encabezados
+  const headers = [
     "Nombre", "CUIL", "Cuil", "Saldo", "Crédito", "interes", "Cuotas",
     "Comisión cancelados", "Renovados", "fecha", "suma total semanales",
     "Clientes q me pagaron a mi", "Total Semanales"
   ];
-  semanas.forEach(s => headerRow1.push(s.label));
+  semanas.forEach(s => headers.push(s.label));
+  sheet1.getRow(3).values = headers;
   
-  sheet1.addRow(headerRow1);
-
-  // Estilo encabezados
-  const hRow1 = sheet1.getRow(1);
-  hRow1.eachCell(cell => {
+  const hRow3 = sheet1.getRow(3);
+  hRow3.eachCell(cell => {
     cell.font = { bold: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } };
   });
-  
-  // Forzar valor de A1 por seguridad
-  sheet1.getCell('A1').value = "Nombre";
 
   const prestamosActivosYMora = data.prestamos.filter((p: any) => {
     const st = String(p.estado || "").trim().toLowerCase();
     return st === "activo" || st === "mora";
   });
 
-  let rowNum = 2;
+  let rowNum = 4;
   for (const p of prestamosActivosYMora) {
     const cliente = data.clientes.find((c: any) => c.id === p.cliente_id) || {};
     
@@ -103,10 +105,10 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       Number(p.cantidad_cuotas || 0),
       Number(p.comision || 0), // Comisión cancelados
       Number(p.cantidad_renovaciones || 0), // Renovados
-      p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-AR") : "", // fecha
-      { formula: `SUM(N${rowNum}:Z${rowNum})` }, // suma total semanales (asumiendo semanas empiezan en N)
+      p.fecha_inicio ? new Date(p.fecha_inicio) : null, // fecha
+      { formula: `SUM(N${rowNum}:${sheet1.getColumn(13 + semanas.length).letter}${rowNum})` }, // suma total semanales
       sumaPagosAdmin, // Clientes q me pagaron a mi
-      0 // Total Semanales (lo dejamos en 0 o vacío por ahora)
+      0 // Total Semanales
     ];
 
     // Llenar semanas
@@ -121,7 +123,9 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       rowValues.push(sum > 0 ? sum : 0);
     });
 
-    sheet1.addRow(rowValues);
+    sheet1.getRow(rowNum).values = rowValues;
+    const cellFecha = sheet1.getCell(`J${rowNum}`);
+    cellFecha.numFmt = 'dd/mm/yyyy';
     rowNum++;
   }
 
@@ -134,14 +138,14 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   
   colsToSumH1.forEach(colIdx => {
     const letter = sheet1.getColumn(colIdx).letter;
-    sheet1.getCell(`${letter}${rowNum}`).value = { formula: `SUM(${letter}2:${letter}${rowNum-1})` };
+    sheet1.getCell(`${letter}${rowNum}`).value = { formula: `SUM(${letter}4:${letter}${rowNum-1})` };
   });
 
 
-  // ─── HOJA 2: Ganancias semanales ──────────────────────────────────
-  const sheet2 = wb.addWorksheet("Ganancias semanales");
-  sheet2.addRow(["Ganancias semanales"]);
-  sheet2.getRow(1).font = { bold: true };
+  // ─── HOJA 2 ──────────────────────────────────
+  const sheet2 = wb.addWorksheet("Hoja2");
+  sheet2.getCell('A1').value = "Ganancias semanales";
+  sheet2.getCell('A1').font = { bold: true };
 
   let rowNumH2 = 2;
   semanas.forEach(s => {
@@ -162,9 +166,12 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
       }
     });
 
-    const dDate = new Date(s.start);
-    const dateStr = `${String(dDate.getDate()).padStart(2, "0")}/${String(dDate.getMonth() + 1).padStart(2, "0")}/${String(dDate.getFullYear()).slice(-2)}`;
-    sheet2.addRow([dateStr, gananciaSemana]);
+    const dateMonday = new Date(s.start);
+    const cellFecha = sheet2.getCell(`A${rowNumH2}`);
+    cellFecha.value = dateMonday;
+    cellFecha.numFmt = 'dd/mm/yy';
+    
+    sheet2.getCell(`B${rowNumH2}`).value = gananciaSemana;
     rowNumH2++;
   });
   
@@ -172,12 +179,17 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
   sheet2.getRow(rowNumH2).font = { bold: true };
 
 
-  // ─── HOJA 3: Total Rendido ────────────────────────────────────────
-  const sheet3 = wb.addWorksheet("Total Rendido");
-  sheet3.addRow(["Fecha", "Total", "Jorge", "yo"]);
-  sheet3.getRow(1).font = { bold: true };
+  // ─── HOJA 3 ────────────────────────────────────────
+  const sheet3 = wb.addWorksheet("Hoja3");
+  sheet3.getCell('A1').value = "Total Rendido";
+  sheet3.getCell('A1').font = { bold: true };
+  sheet3.getCell('C1').value = "Total Ganancia";
+  sheet3.getCell('C1').font = { bold: true };
 
-  let rowNumH3 = 2;
+  sheet3.getRow(2).values = ["Fecha", "Total", "Jorge", "yo"];
+  sheet3.getRow(2).font = { bold: true };
+
+  let rowNumH3 = 3;
   semanas.forEach(s => {
     const pagosSemana = data.pagos.filter((pag: any) => {
       const fecha = pag.fecha_pago || pag.created_at;
@@ -211,22 +223,22 @@ export const buildSebastianWorkbook = async (data: any): Promise<ArrayBuffer> =>
     // Columna B: Total
     // Columna C: Jorge (Valor estático calculado)
     // Columna D: yo (Formula viva: Total - Jorge)
-    sheet3.addRow([
-      s.label,
-      totalCobrado,
-      parteCobrador,
-      { formula: `B${rowNumH3}-C${rowNumH3}` }
-    ]);
+    const fechaCierre = new Date(s.end); // domingo de la semana
+    const cellFecha = sheet3.getCell(`A${rowNumH3}`);
+    cellFecha.value = fechaCierre;
+    cellFecha.numFmt = 'dd/mm/yyyy';
+    
+    sheet3.getCell(`B${rowNumH3}`).value = totalCobrado;
+    sheet3.getCell(`C${rowNumH3}`).value = parteCobrador;
+    sheet3.getCell(`D${rowNumH3}`).value = { formula: `B${rowNumH3}-C${rowNumH3}` };
     rowNumH3++;
   });
 
-  sheet3.addRow([
-    "TOTALES",
-    { formula: `SUM(B2:B${rowNumH3-1})` },
-    { formula: `SUM(C2:C${rowNumH3-1})` },
-    { formula: `SUM(D2:D${rowNumH3-1})` }
-  ]);
-  sheet3.getRow(rowNumH3).font = { bold: true };
+  sheet3.getCell(`A${rowNumH3}`).value = "TOTALES";
+  sheet3.getCell(`A${rowNumH3}`).font = { bold: true };
+  sheet3.getCell(`B${rowNumH3}`).value = { formula: `SUM(B3:B${rowNumH3-1})` };
+  sheet3.getCell(`C${rowNumH3}`).value = { formula: `SUM(C3:C${rowNumH3-1})` };
+  sheet3.getCell(`D${rowNumH3}`).value = { formula: `SUM(D3:D${rowNumH3-1})` };
 
   return await wb.xlsx.writeBuffer();
 };

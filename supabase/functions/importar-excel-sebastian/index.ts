@@ -177,8 +177,9 @@ Deno.serve(async (req) => {
         tasaInteres = Math.round((interesNum / creditoNum) * 100);
       }
 
-      let dni = idxCuil ? getCellValue(row.getCell(idxCuil)).trim() : "";
-      if (!dni) dni = `IMP-${rowNumber}`;
+      // Parseo estricto del CUIL en la Columna 2 (B) ya que hay dos columnas "Cuil"
+      const cuilRaw = row.getCell(2).value;
+      let dni = cuilRaw && String(cuilRaw).trim() !== "" ? String(cuilRaw).trim() : `IMP-${rowNumber}`;
 
       let cuotasStr = idxCuotas ? getCellValue(row.getCell(idxCuotas)) : "1";
       const cuotasNum = parseInt(cuotasStr.replace(/[^\d]/g, ""), 10) || 1;
