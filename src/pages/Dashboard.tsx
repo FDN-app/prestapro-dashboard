@@ -53,11 +53,8 @@ export default function Dashboard() {
       }
     });
 
-    // Capital disponible: Aportes + Ingresos manuales desde Caja - Egresos - Retiros
-    const capitalDisponible = movimientos.reduce((sum, m) => {
-      if (['ingreso_por_recaudacion', 'aporte_inicial', 'ingreso_por_pago'].includes(m.tipo)) return sum + m.monto;
-      return sum - m.monto;
-    }, 0);
+    // Capital disponible: suma directa de todos los movimientos (el signo ya está en monto)
+    const capitalDisponible = movimientos.reduce((sum, m) => sum + Number(m.monto), 0);
 
     const totalNegocio = capitalDisponible + totalEnCaja + capitalEnCalle;
 
