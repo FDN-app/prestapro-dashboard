@@ -91,7 +91,11 @@ export default function SettingsPage() {
     setIsCreatingEmp(true);
     try {
       const { data, error } = await supabase.functions.invoke('crear-usuario', { body: empForm });
-      if (error) throw new Error(error.message);
+      // When Edge Function returns 400, error is generic but data contains the real error
+      if (error) {
+        const realError = data?.error || error.message;
+        throw new Error(realError);
+      }
       if (data?.error) throw new Error(data.error);
       toast.success(`Empleado ${empForm.nombre_completo} creado exitosamente`);
       setShowEmpModal(false);
