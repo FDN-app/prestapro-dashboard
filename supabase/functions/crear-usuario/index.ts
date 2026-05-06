@@ -27,30 +27,23 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    console.log("=== CREAR-USUARIO DEBUG ===");
-    console.log("SUPABASE_URL presente:", !!supabaseUrl);
-    console.log("SERVICE_ROLE_KEY presente:", !!supabaseServiceKey, "length:", supabaseServiceKey.length);
-
     if (!supabaseServiceKey) {
-      throw new Error("SUPABASE_SERVICE_ROLE_KEY no está configurada. Agregala en Supabase → Edge Functions → Secrets.");
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY no configurada.");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    console.log("Body recibido:", JSON.stringify(body));
-
     const { email, password, nombre_completo, rol, comision_porcentaje } = body;
 
     if (!email || !password || !nombre_completo) {
-      throw new Error(`Faltan campos requeridos. email=${!!email}, password=${!!password}, nombre=${!!nombre_completo}`);
+      throw new Error(`Faltan campos requeridos.`);
     }
 
     const validRol = rol === "admin" ? "admin" : "cobrador";
     const comision = Number(comision_porcentaje) || 0;
 
-    console.log("Creando usuario con admin client:", { email, validRol, comision });
-
+    // Create user in auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -58,29 +51,25 @@ Deno.serve(async (req) => {
       user_metadata: { nombre_completo },
     });
 
-    console.log("Resultado auth.admin.createUser:", { userId: authData?.user?.id, error: authError?.message });
-
     if (authError) {
-      throw new Error(`Error creando usuario en auth: ${authError.message}`);
+      throw new Error(`Error auth: ${authError.message}`);
     }
 
     const userId = authData.user.id;
-    console.log("Usuario auth creado OK. ID:", userId);
-    console.log("Actualizando perfil en tabla perfiles...");
 
+    // UPSERT profile (trigger may or may not have created it)
     const { error: profileError } = await supabase
       .from("perfiles")
-      .update({
+      .upsert({
+        id: userId,
+        email: email,
         rol: validRol,
         comision_porcentaje: comision,
         nombre_completo: nombre_completo,
-      })
-      .eq("id", userId);
+      }, { onConflict: "id" });
 
     if (profileError) {
-      console.error("Error actualizando perfil:", profileError.message);
-    } else {
-      console.log("Perfil actualizado OK");
+      console.error("Error upserting perfil:", profileError.message);
     }
 
     return new Response(
@@ -91,7 +80,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error("=== CREAR-USUARIO ERROR ===", error.message);
+    console.error("crear-usuario error:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
