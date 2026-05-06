@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useSettings } from '@/hooks/useSettings';
-import { Send, UserPlus, Key, X } from 'lucide-react';
+import { Send, UserPlus, Key, X, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -36,12 +36,37 @@ export default function SettingsPage() {
   const [pwdForm, setPwdForm] = useState({ nueva: '', confirmar: '' });
   const [isChangingPwd, setIsChangingPwd] = useState(false);
 
+  // Capital modal
+  const [showCapModal, setShowCapModal] = useState(false);
+  const [capForm, setCapForm] = useState({ monto: 0, descripcion: '' });
+  const [isSavingCap, setIsSavingCap] = useState(false);
+
   // Fetch employees
   const { data: empleados } = useQuery({
     queryKey: ['empleados'],
     queryFn: async () => {
       const { data } = await supabase.from('perfiles').select('*').order('creado_en', { ascending: false });
       return data || [];
+    }
+  });
+
+  // Fetch capital total
+  const { data: capitalTotal } = useQuery({
+    queryKey: ['capital-total'],
+    queryFn: async () => {
+      const { data } = await supabase.from('capital').select('monto');
+      return (data || []).reduce((sum: number, r: any) => sum + Number(r.monto), 0);
+    }
+  });
+
+  // Current user role
+  const { data: currentUserRole } = useQuery({
+    queryKey: ['current-user-role'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase.from('perfiles').select('rol').eq('id', user.id).single();
+      return data?.rol || null;
     }
   });
 
@@ -119,6 +144,26 @@ export default function SettingsPage() {
     finally { setIsChangingPwd(false); }
   };
 
+  const handleAjusteCapital = async () => {
+    if (!capForm.monto) { toast.error('Ingresá un monto'); return; }
+    setIsSavingCap(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('capital').insert({
+        tipo: 'ajuste_manual',
+        monto: capForm.monto,
+        descripcion: capForm.descripcion || 'Ajuste manual de capital',
+        usuario_id: user?.id,
+      });
+      if (error) throw error;
+      toast.success('Capital ajustado correctamente');
+      setShowCapModal(false);
+      setCapForm({ monto: 0, descripcion: '' });
+      queryClient.invalidateQueries({ queryKey: ['capital-total'] });
+    } catch (e: any) { toast.error('Error: ' + e.message); }
+    finally { setIsSavingCap(false); }
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <h2 className="text-xl font-bold">Configuración</h2>
@@ -187,6 +232,18 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* ── Capital Disponible (admin only) ── */}
+        {currentUserRole === 'admin' && (
+          <div className="bg-card rounded-lg border border-border p-5 space-y-4">
+            <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2"><DollarSign size={18} className="text-green-500" /> Capital Disponible</h3>
+            <div className="text-center py-3">
+              <p className="text-3xl font-bold text-green-500">${(capitalTotal || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground mt-1">Sumatoria de todos los movimientos</p>
+            </div>
+            <Button variant="outline" onClick={() => setShowCapModal(true)} className="w-full gap-2"><DollarSign size={14} /> Ajustar Capital</Button>
+          </div>
+        )}
+
         {/* ── Cambiar Contraseña ── */}
         <div className="bg-card rounded-lg border border-border p-5 space-y-4">
           <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2"><Key size={18} /> Mi Cuenta</h3>
@@ -221,6 +278,19 @@ export default function SettingsPage() {
             <div className="space-y-2"><Label>Nueva contraseña</Label><Input type="password" value={pwdForm.nueva} onChange={e => setPwdForm({ ...pwdForm, nueva: e.target.value })} /></div>
             <div className="space-y-2"><Label>Confirmar contraseña</Label><Input type="password" value={pwdForm.confirmar} onChange={e => setPwdForm({ ...pwdForm, confirmar: e.target.value })} /></div>
             <Button onClick={handleChangePassword} disabled={isChangingPwd} className="w-full">{isChangingPwd ? 'Actualizando...' : 'Actualizar Contraseña'}</Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Ajustar Capital ── */}
+      {showCapModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowCapModal(false)}>
+          <div className="bg-card rounded-xl border border-border p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center"><h3 className="text-lg font-bold">Ajustar Capital</h3><button onClick={() => setShowCapModal(false)}><X size={20} /></button></div>
+            <p className="text-sm text-muted-foreground">Ingresá un monto positivo para sumar o negativo para restar del capital disponible.</p>
+            <div className="space-y-2"><Label>Monto ($)</Label><Input type="number" step="0.01" value={capForm.monto} onChange={e => setCapForm({ ...capForm, monto: Number(e.target.value) })} placeholder="Ej: 50000 o -10000" /></div>
+            <div className="space-y-2"><Label>Descripción</Label><Input value={capForm.descripcion} onChange={e => setCapForm({ ...capForm, descripcion: e.target.value })} placeholder="Ej: Aporte de efectivo" /></div>
+            <Button onClick={handleAjusteCapital} disabled={isSavingCap} className="w-full">{isSavingCap ? 'Guardando...' : 'Guardar Ajuste'}</Button>
           </div>
         </div>
       )}
