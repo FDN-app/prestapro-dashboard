@@ -26,32 +26,48 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    console.log("=== CREAR-USUARIO DEBUG ===");
+    console.log("SUPABASE_URL presente:", !!supabaseUrl);
+    console.log("SERVICE_ROLE_KEY presente:", !!supabaseServiceKey, "length:", supabaseServiceKey.length);
+
+    if (!supabaseServiceKey) {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY no está configurada. Agregala en Supabase → Edge Functions → Secrets.");
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { email, password, nombre_completo, rol, comision_porcentaje } = await req.json();
+    const body = await req.json();
+    console.log("Body recibido:", JSON.stringify(body));
+
+    const { email, password, nombre_completo, rol, comision_porcentaje } = body;
 
     if (!email || !password || !nombre_completo) {
-      throw new Error("Faltan campos requeridos: email, password, nombre_completo");
+      throw new Error(`Faltan campos requeridos. email=${!!email}, password=${!!password}, nombre=${!!nombre_completo}`);
     }
 
     const validRol = rol === "admin" ? "admin" : "cobrador";
     const comision = Number(comision_porcentaje) || 0;
 
-    // Crear usuario en auth con SERVICE_ROLE_KEY (admin)
+    console.log("Creando usuario con admin client:", { email, validRol, comision });
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Confirmar email automáticamente
+      email_confirm: true,
       user_metadata: { nombre_completo },
     });
 
+    console.log("Resultado auth.admin.createUser:", { userId: authData?.user?.id, error: authError?.message });
+
     if (authError) {
-      throw new Error(`Error creando usuario: ${authError.message}`);
+      throw new Error(`Error creando usuario en auth: ${authError.message}`);
     }
 
     const userId = authData.user.id;
+    console.log("Usuario auth creado OK. ID:", userId);
+    console.log("Actualizando perfil en tabla perfiles...");
 
-    // Actualizar perfil (el trigger ya lo creó como cobrador, pero actualizamos rol y comisión)
     const { error: profileError } = await supabase
       .from("perfiles")
       .update({
@@ -62,7 +78,9 @@ Deno.serve(async (req) => {
       .eq("id", userId);
 
     if (profileError) {
-      console.error("Error actualizando perfil:", profileError);
+      console.error("Error actualizando perfil:", profileError.message);
+    } else {
+      console.log("Perfil actualizado OK");
     }
 
     return new Response(
@@ -73,6 +91,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error: any) {
+    console.error("=== CREAR-USUARIO ERROR ===", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
