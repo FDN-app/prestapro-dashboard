@@ -38,7 +38,7 @@ export default function SettingsPage() {
 
   // Capital modal
   const [showCapModal, setShowCapModal] = useState(false);
-  const [capForm, setCapForm] = useState({ monto: 0, descripcion: '' });
+  const [capForm, setCapForm] = useState({ monto: '', descripcion: '' });
   const [isSavingCap, setIsSavingCap] = useState(false);
 
   // Fetch employees
@@ -145,20 +145,21 @@ export default function SettingsPage() {
   };
 
   const handleAjusteCapital = async () => {
-    if (!capForm.monto) { toast.error('Ingresá un monto'); return; }
+    const montoNum = Number(capForm.monto);
+    if (!capForm.monto || isNaN(montoNum)) { toast.error('Ingresá un monto válido'); return; }
     setIsSavingCap(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from('capital').insert({
         tipo: 'ajuste_manual',
-        monto: capForm.monto,
+        monto: montoNum,
         descripcion: capForm.descripcion || 'Ajuste manual de capital',
         usuario_id: user?.id,
       });
       if (error) throw error;
       toast.success('Capital ajustado correctamente');
       setShowCapModal(false);
-      setCapForm({ monto: 0, descripcion: '' });
+      setCapForm({ monto: '', descripcion: '' });
       queryClient.invalidateQueries({ queryKey: ['capital-total'] });
     } catch (e: any) { toast.error('Error: ' + e.message); }
     finally { setIsSavingCap(false); }
@@ -288,7 +289,7 @@ export default function SettingsPage() {
           <div className="bg-card rounded-xl border border-border p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center"><h3 className="text-lg font-bold">Ajustar Capital</h3><button onClick={() => setShowCapModal(false)}><X size={20} /></button></div>
             <p className="text-sm text-muted-foreground">Ingresá un monto positivo para sumar o negativo para restar del capital disponible.</p>
-            <div className="space-y-2"><Label>Monto ($)</Label><Input type="number" step="0.01" value={capForm.monto} onChange={e => setCapForm({ ...capForm, monto: Number(e.target.value) })} placeholder="Ej: 50000 o -10000" /></div>
+            <div className="space-y-2"><Label>Monto ($)</Label><Input type="number" step="0.01" value={capForm.monto} onChange={e => setCapForm({ ...capForm, monto: e.target.value })} placeholder="0" /></div>
             <div className="space-y-2"><Label>Descripción</Label><Input value={capForm.descripcion} onChange={e => setCapForm({ ...capForm, descripcion: e.target.value })} placeholder="Ej: Aporte de efectivo" /></div>
             <Button onClick={handleAjusteCapital} disabled={isSavingCap} className="w-full">{isSavingCap ? 'Guardando...' : 'Guardar Ajuste'}</Button>
           </div>
