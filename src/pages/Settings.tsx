@@ -39,6 +39,7 @@ export default function SettingsPage() {
   // Capital modal
   const [showCapModal, setShowCapModal] = useState(false);
   const [capForm, setCapForm] = useState({ monto: '', descripcion: '' });
+  const [capMode, setCapMode] = useState<'ajuste' | 'reemplazar'>('ajuste');
   const [isSavingCap, setIsSavingCap] = useState(false);
 
   // Fetch employees
@@ -150,16 +151,28 @@ export default function SettingsPage() {
     setIsSavingCap(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      let montoFinal = montoNum;
+      let desc = capForm.descripcion;
+
+      if (capMode === 'reemplazar') {
+        const saldoActual = capitalTotal || 0;
+        montoFinal = montoNum - saldoActual;
+        desc = desc || `Reemplazo de capital a $${montoNum.toLocaleString('es-AR')}`;
+      } else {
+        desc = desc || 'Ajuste manual de capital';
+      }
+
       const { error } = await supabase.from('capital').insert({
         tipo: 'ajuste_manual',
-        monto: montoNum,
-        descripcion: capForm.descripcion || 'Ajuste manual de capital',
+        monto: montoFinal,
+        descripcion: desc,
         usuario_id: user?.id,
       });
       if (error) throw error;
-      toast.success('Capital ajustado correctamente');
+      toast.success(capMode === 'reemplazar' ? `Capital establecido en $${montoNum.toLocaleString('es-AR')}` : 'Capital ajustado correctamente');
       setShowCapModal(false);
       setCapForm({ monto: '', descripcion: '' });
+      setCapMode('ajuste');
       queryClient.invalidateQueries({ queryKey: ['capital-total'] });
     } catch (e: any) { toast.error('Error: ' + e.message); }
     finally { setIsSavingCap(false); }
@@ -288,10 +301,17 @@ export default function SettingsPage() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowCapModal(false)}>
           <div className="bg-card rounded-xl border border-border p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center"><h3 className="text-lg font-bold">Ajustar Capital</h3><button onClick={() => setShowCapModal(false)}><X size={20} /></button></div>
-            <p className="text-sm text-muted-foreground">Ingresá un monto positivo para sumar o negativo para restar del capital disponible.</p>
-            <div className="space-y-2"><Label>Monto ($)</Label><Input type="number" step="0.01" value={capForm.monto} onChange={e => setCapForm({ ...capForm, monto: e.target.value })} placeholder="0" /></div>
-            <div className="space-y-2"><Label>Descripción</Label><Input value={capForm.descripcion} onChange={e => setCapForm({ ...capForm, descripcion: e.target.value })} placeholder="Ej: Aporte de efectivo" /></div>
-            <Button onClick={handleAjusteCapital} disabled={isSavingCap} className="w-full">{isSavingCap ? 'Guardando...' : 'Guardar Ajuste'}</Button>
+            <div className="space-y-2">
+              <Label>Modo</Label>
+              <select className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" value={capMode} onChange={e => setCapMode(e.target.value as 'ajuste' | 'reemplazar')}>
+                <option value="ajuste">Sumar / Restar</option>
+                <option value="reemplazar">Reemplazar valor total</option>
+              </select>
+            </div>
+            <p className="text-sm text-muted-foreground">{capMode === 'reemplazar' ? `Capital actual: $${(capitalTotal || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}. Ingresá el monto total deseado.` : 'Ingresá un monto positivo para sumar o negativo para restar.'}</p>
+            <div className="space-y-2"><Label>{capMode === 'reemplazar' ? 'Monto total deseado ($)' : 'Monto ($)'}</Label><Input type="number" step="0.01" value={capForm.monto} onChange={e => setCapForm({ ...capForm, monto: e.target.value })} placeholder={capMode === 'reemplazar' ? 'Monto total deseado' : '0'} /></div>
+            <div className="space-y-2"><Label>Descripción</Label><Input value={capForm.descripcion} onChange={e => setCapForm({ ...capForm, descripcion: e.target.value })} placeholder={capMode === 'reemplazar' ? 'Ej: Corrección de saldo' : 'Ej: Aporte de efectivo'} /></div>
+            <Button onClick={handleAjusteCapital} disabled={isSavingCap} className="w-full">{isSavingCap ? 'Guardando...' : capMode === 'reemplazar' ? 'Establecer Capital' : 'Guardar Ajuste'}</Button>
           </div>
         </div>
       )}
