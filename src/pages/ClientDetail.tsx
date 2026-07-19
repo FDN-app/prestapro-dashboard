@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePagos } from '@/hooks/usePagos';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,14 +24,94 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
 
-function LoanAccordionItem({ loan }: { loan: any }) {
+function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string }) {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const { registrarPago, isRegistrando } = usePagos();
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
   const [extendInterest, setExtendInterest] = useState('0');
-  
+
+  // Estados para Pagó Todo
+  const [showPayAllModal, setShowPayAllModal] = useState(false);
+  const [selectedCuotaPayAll, setSelectedCuotaPayAll] = useState<any>(null);
+  const [payAllAmount, setPayAllAmount] = useState(0);
+  const [payAllMethod, setPayAllMethod] = useState('efectivo');
+
+  // Estados para Pagó Parcial
+  const [showPayPartialModal, setShowPayPartialModal] = useState(false);
+  const [selectedCuotaPayPartial, setSelectedCuotaPayPartial] = useState<any>(null);
+  const [payPartialAmount, setPayPartialAmount] = useState('');
+  const [payPartialMethod, setPayPartialMethod] = useState('efectivo');
+  const [payPartialNotes, setPayPartialNotes] = useState('');
+
   const { cuotas, isLoading } = useCuotas(loan.id); 
   const { extenderPrestamo, isExtendiendo } = usePrestamos();
+
+  const handlePagarTodoClick = (cuota: any, restante: number) => {
+    setSelectedCuotaPayAll(cuota);
+    setPayAllAmount(restante);
+    setPayAllMethod('efectivo');
+    setShowPayAllModal(true);
+  };
+
+  const handlePagarParcialClick = (cuota: any, restante: number) => {
+    setSelectedCuotaPayPartial(cuota);
+    setPayPartialAmount('');
+    setPayPartialMethod('efectivo');
+    setPayPartialNotes('');
+    setShowPayPartialModal(true);
+  };
+
+  const handleConfirmPayAll = async () => {
+    if (!selectedCuotaPayAll) return;
+    try {
+      await registrarPago({
+        p_prestamo_id: loan.id,
+        p_monto: payAllAmount,
+        p_metodo: payAllMethod,
+        p_notas: '',
+        p_es_cobro_directo_admin: false,
+      });
+      setShowPayAllModal(false);
+    } catch (e) {
+      // error toast managed by hook
+    }
+  };
+
+  const handleConfirmPayPartial = async () => {
+    if (!selectedCuotaPayPartial || !payPartialAmount) {
+      toast.error('Por favor ingrese el monto pagado');
+      return;
+    }
+
+    const amountNum = Number(payPartialAmount);
+
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error('El monto debe ser mayor a 0');
+      return;
+    }
+
+    if (amountNum > Number(loan.saldo_pendiente)) {
+      toast.error(`El monto NO puede ser mayor al saldo total pendiente del préstamo (${formatCurrency(loan.saldo_pendiente)})`);
+      return;
+    }
+
+    try {
+      await registrarPago({
+        p_prestamo_id: loan.id,
+        p_monto: amountNum,
+        p_metodo: payPartialMethod,
+        p_notas: payPartialNotes,
+        p_es_cobro_directo_admin: false,
+      });
+      setShowPayPartialModal(false);
+      toast.success('Pago parcial registrado. Saldo aplicado a la próxima cuota si corresponde.');
+    } catch (e) {
+      // error toast managed by hook
+    }
+  };
   
   const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado';
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
@@ -175,15 +256,23 @@ function LoanAccordionItem({ loan }: { loan: any }) {
                         <span className={`text-xs px-2 py-1 rounded-full border w-fit ${style.classes}`}>
                           {style.label}
                         </span>
-                        {requirePayment && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-                            onClick={() => navigate(`/registrar-pago?prestamo=${loan.id}`)}
-                          >
-                            Registrar
-                          </Button>
+                        {requirePayment && (role === 'admin' || role === 'cobrador') && (
+                          <div className="flex flex-col sm:flex-row gap-1.5 w-full sm:w-auto">
+                            <Button 
+                              size="sm"
+                              className="h-7 text-xs bg-[#10B981] hover:bg-[#10B981]/90 text-white font-semibold transition-colors w-full sm:w-auto"
+                              onClick={() => handlePagarTodoClick(cuota, restante)}
+                            >
+                              ✅ Pagó todo
+                            </Button>
+                            <Button 
+                              size="sm"
+                              className="h-7 text-xs bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white font-semibold transition-colors w-full sm:w-auto"
+                              onClick={() => handlePagarParcialClick(cuota, restante)}
+                            >
+                              💰 Pagó parcial
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -242,6 +331,106 @@ function LoanAccordionItem({ loan }: { loan: any }) {
               disabled={isExtendiendo}
             >
               {isExtendiendo ? 'Extendiendo...' : 'Confirmar Extensión'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Confirmar Pago Total */}
+      <Dialog open={showPayAllModal} onOpenChange={setShowPayAllModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar pago total</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4 text-left">
+            <p className="text-sm text-muted-foreground">
+              ¿Confirmás que <span className="font-semibold text-foreground">{clientName}</span> pagó <span className="font-semibold text-[#10B981]">{formatCurrency(payAllAmount)}</span> de la cuota #{selectedCuotaPayAll?.numero_cuota}?
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="pay-all-method">Método de pago</Label>
+              <select 
+                id="pay-all-method" 
+                value={payAllMethod} 
+                onChange={e => setPayAllMethod(e.target.value)} 
+                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayAllModal(false)}>Cancelar</Button>
+            <Button 
+              onClick={handleConfirmPayAll} 
+              disabled={isRegistrando}
+              className="bg-[#10B981] hover:bg-[#10B981]/90 text-white font-semibold"
+            >
+              {isRegistrando ? 'Registrando...' : 'Confirmar pago'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Registrar Pago Parcial */}
+      <Dialog open={showPayPartialModal} onOpenChange={setShowPayPartialModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Registrar pago parcial</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4 text-left">
+            {selectedCuotaPayPartial && (
+              <p className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded border border-border">
+                Cuota #{selectedCuotaPayPartial.numero_cuota} — Monto original: <span className="font-semibold text-foreground">{formatCurrency(selectedCuotaPayPartial.monto_cuota)}</span>. Ingresá cuánto pagó el cliente.
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="pay-partial-amount">Monto pagado ($) *</Label>
+              <Input 
+                id="pay-partial-amount"
+                type="number"
+                value={payPartialAmount}
+                onChange={e => setPayPartialAmount(e.target.value)}
+                placeholder="0"
+                required
+              />
+              {selectedCuotaPayPartial && payPartialAmount && Number(payPartialAmount) === (Number(selectedCuotaPayPartial.monto_cuota) - (Number(selectedCuotaPayPartial.monto_cobrado) || 0)) && (
+                <p className="text-xs text-[#F59E0B] font-medium animate-in fade-in duration-200">
+                  Sugerencia: Podés usar la opción "Pagó todo" para esta cuota.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-partial-method">Método de pago</Label>
+              <select 
+                id="pay-partial-method" 
+                value={payPartialMethod} 
+                onChange={e => setPayPartialMethod(e.target.value)} 
+                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-partial-notes">Notas</Label>
+              <Textarea 
+                id="pay-partial-notes"
+                value={payPartialNotes}
+                onChange={e => setPayPartialNotes(e.target.value)}
+                placeholder="Notas opcionales..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayPartialModal(false)}>Cancelar</Button>
+            <Button 
+              onClick={handleConfirmPayPartial} 
+              disabled={isRegistrando}
+              className="bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white font-semibold"
+            >
+              {isRegistrando ? 'Registrando...' : 'Confirmar pago parcial'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -441,7 +630,7 @@ export default function ClientDetail() {
 
         <div className="space-y-3">
           {clientLoans.map(loan => (
-            <LoanAccordionItem key={loan.id} loan={loan} />
+            <LoanAccordionItem key={loan.id} loan={loan} clientName={client.nombre_completo} />
           ))}
           {clientLoans.length === 0 && (
             <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-lg bg-card/30">
