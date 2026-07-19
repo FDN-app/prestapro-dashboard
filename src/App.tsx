@@ -21,6 +21,7 @@ import CollectorPending from "./pages/CollectorPending";
 import Subscriptions from "./pages/Subscriptions";
 import AsistenteIA from "./pages/AsistenteIA";
 import Register from "./pages/Register";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/clientes" element={<AppLayout><Clients /></AppLayout>} />
             <Route path="/cliente/:id" element={<AppLayout><ClientDetail /></AppLayout>} />
