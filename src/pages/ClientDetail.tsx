@@ -10,6 +10,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from 'sonner';
 
 function LoanAccordionItem({ loan }: { loan: any }) {
   const navigate = useNavigate();
@@ -241,11 +253,13 @@ function LoanAccordionItem({ loan }: { loan: any }) {
 export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   
   const { clientes, isLoading: isLoadingClientes, updateCliente, isUpdating } = useClientes();
   const { prestamos, isLoading: isLoadingPrestamos } = usePrestamos();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [editForm, setEditForm] = useState({
     nombre_completo: '',
     telefono: '',
@@ -291,6 +305,29 @@ export default function ClientDetail() {
     }
   };
 
+  const handleArchiveClick = () => {
+    const activeLoans = clientLoans.filter(l => !['liquidado', 'cancelado'].includes(l.estado));
+    if (activeLoans.length > 0) {
+      toast.error('No podés archivar un cliente con préstamos activos');
+      return;
+    }
+    setShowArchiveDialog(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    setShowArchiveDialog(false);
+    try {
+      await updateCliente({
+        id: client.id,
+        updates: { archivado: true }
+      });
+      toast.success('Cliente archivado correctamente');
+      navigate('/clientes');
+    } catch (e) {
+      // ya manejado por toast en el hook
+    }
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-4">
       <button onClick={() => navigate('/clientes')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2">
@@ -321,9 +358,21 @@ export default function ClientDetail() {
             </div>
           </div>
           
-          <Button variant="outline" size="sm" onClick={handleEditClick} className="shrink-0 w-full sm:w-auto h-8 text-xs font-medium">
-            <Pencil size={13} className="mr-1.5" /> Editar Perfil
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+            <Button variant="outline" size="sm" onClick={handleEditClick} className="h-8 text-xs font-medium w-full sm:w-auto">
+              <Pencil size={13} className="mr-1.5" /> Editar Perfil
+            </Button>
+            {isAdmin && !client.archivado && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleArchiveClick} 
+                className="h-8 text-xs font-medium w-full sm:w-auto bg-destructive hover:bg-destructive/90"
+              >
+                Archivar cliente
+              </Button>
+            )}
+          </div>
         </div>
         
         {/* Grid Datos Personales */}
@@ -453,6 +502,29 @@ export default function ClientDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Confirmar Archivación */}
+      <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro que querés archivar a {client.nombre_completo}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              No aparecerá más en la lista principal pero sus datos se conservan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowArchiveDialog(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmArchive}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Archivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

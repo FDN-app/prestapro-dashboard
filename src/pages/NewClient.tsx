@@ -7,10 +7,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useClientes } from '@/hooks/useClientes';
+import { supabase } from '@/lib/supabase';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function NewClient() {
   const navigate = useNavigate();
   const { createCliente, isCreating } = useClientes();
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [formData, setFormData] = useState({
     nombre_completo: '',
     dni: '',
@@ -24,11 +37,37 @@ export default function NewClient() {
       toast.error('Nombre y teléfono son obligatorios');
       return;
     }
+    
+    setCheckingDuplicate(true);
+    try {
+      // Verificar si ya existe un cliente con el mismo nombre (case-insensitive)
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id')
+        .ilike('nombre_completo', formData.nombre_completo);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setShowDuplicateDialog(true);
+        setCheckingDuplicate(false);
+      } else {
+        await proceedWithCreation();
+      }
+    } catch (e: any) {
+      toast.error('Error al verificar clientes duplicados: ' + e.message);
+      setCheckingDuplicate(false);
+    }
+  };
+
+  const proceedWithCreation = async () => {
     try {
       await createCliente(formData);
       navigate('/clientes');
     } catch (e) {
       // toast is handled in the hook
+    } finally {
+      setCheckingDuplicate(false);
     }
   };
 
@@ -80,10 +119,33 @@ export default function NewClient() {
             placeholder="Notas opcionales..." 
           />
         </div>
-        <Button className="w-full" onClick={handleSubmit} disabled={isCreating}>
-          {isCreating ? 'Guardando...' : 'Guardar Cliente'}
+        <Button className="w-full" onClick={handleSubmit} disabled={isCreating || checkingDuplicate}>
+          {isCreating || checkingDuplicate ? 'Guardando...' : 'Guardar Cliente'}
         </Button>
       </div>
+
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Advertencia: Nombre duplicado</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ya existe un cliente con el nombre <span className="font-semibold text-foreground">"{formData.nombre_completo}"</span>. ¿Querés crearlo igual o cancelar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDuplicateDialog(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              setShowDuplicateDialog(false);
+              setCheckingDuplicate(true);
+              await proceedWithCreation();
+            }}>
+              Crear igual
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

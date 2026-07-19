@@ -12,6 +12,7 @@ export interface Cliente {
   telegram_chat_id?: string | null;
   estado: 'activo' | 'inactivo';
   creado_en: string;
+  archivado?: boolean;
 }
 
 export interface ClienteConSaldos extends Cliente {
@@ -115,12 +116,32 @@ export function useClientes() {
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Cliente eliminado permanentemente');
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (error) => {
+      toast.error('Error al eliminar el cliente: ' + error.message);
+    }
+  });
+
   return {
     ...query,
     clientes: query.data || [],
     createCliente: createMutation.mutateAsync,
     updateCliente: updateMutation.mutateAsync,
+    deleteCliente: deleteMutation.mutateAsync,
     isCreating: createMutation.isPending,
-    isUpdating: updateMutation.isPending
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending
   };
 }

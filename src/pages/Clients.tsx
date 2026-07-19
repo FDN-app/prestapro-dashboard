@@ -5,14 +5,30 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from 'sonner';
 
 export default function Clients() {
   const navigate = useNavigate();
-  const { clientes, isLoading } = useClientes();
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [debtFilter, setDebtFilter] = useState('todos');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [showArchived, setShowArchived] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<any>(null);
+
+  const { clientes, isLoading, updateCliente, deleteCliente } = useClientes();
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -20,6 +36,14 @@ export default function Clients() {
   };
 
   const filtered = clientes.filter(c => {
+    // Si showArchived es true, solo mostrar clientes archivados
+    if (showArchived) {
+      if (!c.archivado) return false;
+    } else {
+      // Por defecto, ocultar los archivados
+      if (c.archivado) return false;
+    }
+
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
     const matchStatus = statusFilter === 'todos' ||
       (statusFilter === 'activos' && c.status !== 'pagado') ||
@@ -57,7 +81,25 @@ export default function Clients() {
   return (
     <div className="p-4 lg:p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Clientes (Excel View)</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-bold">Clientes (Excel View)</h2>
+          {isAdmin && (
+            <div className="flex bg-secondary rounded-lg p-0.5 border border-border text-xs">
+              <button 
+                onClick={() => setShowArchived(false)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${!showArchived ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Activos
+              </button>
+              <button 
+                onClick={() => setShowArchived(true)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${showArchived ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Archivados
+              </button>
+            </div>
+          )}
+        </div>
         <Button size="sm" onClick={() => navigate('/nuevo-cliente')}>
           <Plus size={16} className="mr-1" /> Nuevo Cliente
         </Button>
@@ -93,11 +135,12 @@ export default function Clients() {
               <th className="text-right p-3 font-medium">Saldo Deudor</th>
               <th className="text-center p-3 font-medium">Cuotas</th>
               <th className="text-center p-3 font-medium">Estado</th>
+              {showArchived && <th className="text-center p-3 font-medium whitespace-nowrap">Acciones</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-               <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">No hay clientes que coincidan</td></tr>
+               <tr><td colSpan={showArchived ? 9 : 8} className="p-8 text-center text-muted-foreground">No hay clientes que coincidan</td></tr>
             )}
             {filtered.map(c => {
               const prestamos = c.prestamos || [];
@@ -108,7 +151,11 @@ export default function Clients() {
               if (prestamos.length === 0) {
                 // Return fallback row for clients without loans
                 return (
-                  <tr key={c.id} onClick={() => navigate(`/cliente/${c.id}`)} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer">
+                  <tr 
+                    key={c.id} 
+                    onClick={() => !showArchived && navigate(`/cliente/${c.id}`)} 
+                    className={`border-b border-border last:border-0 hover:bg-secondary/50 ${showArchived ? '' : 'cursor-pointer'}`}
+                  >
                     <td className="p-3 font-semibold">{c.name}</td>
                     <td className="p-3 text-muted-foreground">{c.dni || '-'}</td>
                     <td className="p-3 text-muted-foreground">{c.phone || '-'}</td>
@@ -117,6 +164,31 @@ export default function Clients() {
                     <td className="p-3 text-right">-</td>
                     <td className="p-3 text-center">-</td>
                     <td className="p-3 text-center"><span className="px-2 py-1 rounded-full text-xs bg-secondary text-muted-foreground">Sin Préstamos</span></td>
+                    {showArchived && (
+                      <td className="p-3 text-center flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button 
+                          variant="outline" 
+                          size="xs" 
+                          className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold"
+                          onClick={async () => {
+                            try {
+                              await updateCliente({ id: c.id, updates: { archivado: false } });
+                              toast.success('Cliente desarchivado correctamente');
+                            } catch (err) {}
+                          }}
+                        >
+                          Desarchivar
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="xs" 
+                          className="h-7 text-xs bg-destructive text-white hover:bg-destructive/90 font-semibold"
+                          onClick={() => setClientToDelete(c)}
+                        >
+                          Eliminar
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 );
               }
@@ -131,8 +203,8 @@ export default function Clients() {
                     return (
                       <tr 
                         key={p.id} 
-                        onClick={() => navigate(`/cliente/${c.id}`)} 
-                        className={`border-b border-border hover:bg-secondary/20 cursor-pointer ${index === 0 && hasMultiple ? 'bg-secondary/5' : ''}`}
+                        onClick={() => !showArchived && navigate(`/cliente/${c.id}`)} 
+                        className={`border-b border-border hover:bg-secondary/20 ${showArchived ? '' : 'cursor-pointer'} ${index === 0 && hasMultiple ? 'bg-secondary/5' : ''}`}
                       >
                         <td className="p-3 font-medium flex items-center gap-2">
                           {hasMultiple && index === 0 && (
@@ -159,6 +231,33 @@ export default function Clients() {
                             {getLoanStatusLabel(p.estado)}
                           </span>
                         </td>
+                        {showArchived && index === 0 && (
+                          <td className="p-3 text-center align-middle" rowSpan={displayLoans.length} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="xs" 
+                                className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold"
+                                onClick={async () => {
+                                  try {
+                                    await updateCliente({ id: c.id, updates: { archivado: false } });
+                                    toast.success('Cliente desarchivado correctamente');
+                                  } catch (err) {}
+                                }}
+                              >
+                                Desarchivar
+                              </Button>
+                              <Button 
+                                variant="destructive" 
+                                size="xs" 
+                                className="h-7 text-xs bg-destructive text-white hover:bg-destructive/90 font-semibold"
+                                onClick={() => setClientToDelete(c)}
+                              >
+                                Eliminar
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -172,7 +271,11 @@ export default function Clients() {
       {/* Mobile cards (legacy view updated) */}
       <div className="md:hidden space-y-3">
         {filtered.map(c => (
-          <button key={c.id} onClick={() => navigate(`/cliente/${c.id}`)} className="w-full bg-card rounded-lg border border-border p-4 text-left hover:bg-secondary/50 transition-colors">
+          <div 
+            key={c.id} 
+            onClick={() => !showArchived && navigate(`/cliente/${c.id}`)} 
+            className="w-full bg-card rounded-lg border border-border p-4 text-left hover:bg-secondary/50 transition-colors"
+          >
             <div className="flex items-center justify-between">
               <p className="font-medium">{c.name}</p>
               <span className={`text-xs ${statusColor(c.status)}`}>{statusLabel(c.status)}</span>
@@ -182,9 +285,64 @@ export default function Clients() {
               <span className="text-muted-foreground">{c.activeLoans} préstamo(s) act.</span>
               <span className="font-bold text-status-red">{formatCurrency(c.totalBalance)} deuda</span>
             </div>
-          </button>
+            {showArchived && (
+              <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-border" onClick={(e) => e.stopPropagation()}>
+                <Button 
+                  variant="outline" 
+                  size="xs" 
+                  className="h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold"
+                  onClick={async () => {
+                    try {
+                      await updateCliente({ id: c.id, updates: { archivado: false } });
+                      toast.success('Cliente desarchivado correctamente');
+                    } catch (err) {}
+                  }}
+                >
+                  Desarchivar
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="xs" 
+                  className="h-7 text-xs bg-destructive text-white hover:bg-destructive/90 font-semibold"
+                  onClick={() => setClientToDelete(c)}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
+
+      {/* Dialog para Confirmar Eliminación Permanente */}
+      <AlertDialog open={!!clientToDelete} onOpenChange={(open) => !open && setClientToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Confirmar Eliminación Permanente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. ¿Estás seguro que querés eliminar permanentemente a <span className="font-semibold text-foreground">"{clientToDelete?.name || clientToDelete?.nombre_completo}"</span> y todos sus datos?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClientToDelete(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={async () => {
+                if (clientToDelete) {
+                  try {
+                    await deleteCliente(clientToDelete.id);
+                    setClientToDelete(null);
+                  } catch (err) {}
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
