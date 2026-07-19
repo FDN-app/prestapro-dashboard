@@ -39,14 +39,19 @@ export default function RegisterPayment() {
   
   const currentTotalPending = useMemo(() => pendingInstallments.reduce((sum, i) => sum + (i.monto_cuota - i.monto_cobrado), 0), [pendingInstallments]);
 
-  // Default to oldest unpaid installment or the total
-  const defaultAmount = pendingInstallments.length > 0 ? (pendingInstallments[0].monto_cuota - pendingInstallments[0].monto_cobrado) : 0;
-
   useEffect(() => {
-    if (pendingInstallments.length > 0 && loanId) {
-      setAmount(defaultAmount.toString());
+    if (!loanId) {
+      setAmount('');
+      return;
     }
-  }, [loanId, defaultAmount]); // Only trigger when loanId changes, not when amount is cleared
+    
+    if (pendingInstallments.length > 0) {
+      const nextInstallmentAmount = pendingInstallments[0].monto_cuota - pendingInstallments[0].monto_cobrado;
+      setAmount(nextInstallmentAmount.toString());
+    } else if (!loadingCuotas) {
+      setAmount('0');
+    }
+  }, [loanId, cuotas, loadingCuotas]);
 
   const handleConfirm = async () => {
     if (!loanId || !amount || Number(amount) <= 0) {

@@ -306,7 +306,7 @@ export default function ClientDetail() {
   };
 
   const handleArchiveClick = () => {
-    const activeLoans = clientLoans.filter(l => !['liquidado', 'cancelado'].includes(l.estado));
+    const activeLoans = clientLoans.filter(l => ['activo', 'mora'].includes(l.estado));
     if (activeLoans.length > 0) {
       toast.error('No podés archivar un cliente con préstamos activos');
       return;
