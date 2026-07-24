@@ -118,18 +118,14 @@ export function useClientes() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clientes')
-        .delete()
-        .eq('id', id);
-      
+      const { error } = await supabase.rpc('eliminar_cliente_completo', { p_cliente_id: id });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success('Cliente eliminado permanentemente');
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Error al eliminar el cliente: ' + error.message);
     }
   });
