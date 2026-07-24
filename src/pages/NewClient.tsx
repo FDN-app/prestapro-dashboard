@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,17 +23,39 @@ export default function NewClient() {
   const navigate = useNavigate();
   const { createCliente, isCreating } = useClientes();
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
-  const [formData, setFormData] = useState({
-    nombre_completo: '',
-    dni: '',
-    telefono: '',
-    direccion: '',
-    notas: ''
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  const [formData, setFormData] = useState(() => {
+    const saved = sessionStorage.getItem('draft_new_client');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return {
+      nombre_completo: '',
+      dni: '',
+      telefono: '',
+      direccion: '',
+      notas: ''
+    };
   });
 
+  useEffect(() => {
+    sessionStorage.setItem('draft_new_client', JSON.stringify(formData));
+  }, [formData]);
+
   const handleSubmit = async () => {
-    if (!formData.nombre_completo || !formData.telefono) {
+    const newErrors: Record<string, string> = {};
+    if (!formData.nombre_completo) newErrors.nombre_completo = 'Campo requerido';
+    if (!formData.telefono) newErrors.telefono = 'Campo requerido';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       toast.error('Nombre y teléfono son obligatorios');
       return;
     }
@@ -42,9 +64,9 @@ export default function NewClient() {
     try {
       // Verificar si ya existe un cliente con el mismo nombre (case-insensitive)
       const { data, error } = await supabase
-        .from('clientes')
-        .select('id')
-        .ilike('nombre_completo', formData.nombre_completo);
+          .from('clientes')
+          .select('id')
+          .ilike('nombre_completo', formData.nombre_completo);
 
       if (error) throw error;
 
@@ -63,6 +85,7 @@ export default function NewClient() {
   const proceedWithCreation = async () => {
     try {
       await createCliente(formData);
+      sessionStorage.removeItem('draft_new_client');
       navigate('/clientes');
     } catch (e) {
       // toast is handled in the hook
@@ -71,9 +94,18 @@ export default function NewClient() {
     }
   };
 
+  const handleBack = () => {
+    const hasChanges = Object.values(formData).some(value => value !== '');
+    if (hasChanges) {
+      setShowUnsavedDialog(true);
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={handleBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Volver
       </button>
       <h2 className="text-xl font-bold">Nuevo Cliente</h2>
@@ -83,9 +115,17 @@ export default function NewClient() {
           <Label>Nombre completo *</Label>
           <Input 
             value={formData.nombre_completo} 
-            onChange={e => setFormData({ ...formData, nombre_completo: e.target.value })} 
+            onChange={e => {
+              setFormData({ ...formData, nombre_completo: e.target.value });
+              if (errors.nombre_completo) setErrors(prev => ({ ...prev, nombre_completo: '' }));
+            }} 
             placeholder="Nombre y apellido" 
           />
+          {errors.nombre_completo && (
+            <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
+              {errors.nombre_completo}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label>DNI / Documento</Label>
@@ -99,9 +139,17 @@ export default function NewClient() {
           <Label>Teléfono *</Label>
           <Input 
             value={formData.telefono} 
-            onChange={e => setFormData({ ...formData, telefono: e.target.value })} 
+            onChange={e => {
+              setFormData({ ...formData, telefono: e.target.value });
+              if (errors.telefono) setErrors(prev => ({ ...prev, telefono: '' }));
+            }} 
             placeholder="+54 11 5555-0000" 
           />
+          {errors.telefono && (
+            <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
+              {errors.telefono}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Dirección</Label>
@@ -142,6 +190,29 @@ export default function NewClient() {
               await proceedWithCreation();
             }}>
               Crear igual
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Querés descartar los cambios?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tenés cambios sin guardar. ¿Querés descartar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowUnsavedDialog(false)}>
+              Seguir editando
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              sessionStorage.removeItem('draft_new_client');
+              setShowUnsavedDialog(false);
+              navigate(-1);
+            }}>
+              Descartar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
