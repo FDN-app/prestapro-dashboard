@@ -10,7 +10,7 @@ import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useClientes } from '@/hooks/useClientes';
-import { cn } from '@/lib/utils';
+import { cn, formatDateLocal, parseDateLocal } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,13 +23,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-
-function formatDateLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 export default function NewLoan() {
   const navigate = useNavigate();
@@ -429,7 +422,7 @@ export default function NewLoan() {
                 <PopoverContent className="w-auto p-0 bg-popover border border-border" align="start">
                   <Calendar
                     mode="single"
-                    selected={firstInstallmentDate ? new Date(firstInstallmentDate + 'T00:00:00') : undefined}
+                    selected={firstInstallmentDate ? parseDateLocal(firstInstallmentDate) : undefined}
                     onSelect={(date) => {
                       if (date) {
                         const yyyy = date.getFullYear();

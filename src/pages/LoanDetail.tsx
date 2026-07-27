@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCuotas } from '@/hooks/useCuotas';
 import { Badge } from '@/components/ui/badge';
+import { formatDateDisplay } from '@/lib/utils';
 
 export default function LoanDetail() {
   const { id } = useParams();
@@ -96,8 +97,8 @@ export default function LoanDetail() {
             <p className="text-lg font-bold">{loan.tasa_interes}% <span className="text-xs font-medium text-muted-foreground">({loan.frecuencia_pago})</span></p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Inicio del Crédito</p>
-            <p className="text-lg font-bold">{new Date(loan.fecha_inicio).toLocaleDateString()}</p>
+             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Inicio del Crédito</p>
+             <p className="text-lg font-bold">{formatDateDisplay(loan.fecha_inicio)}</p>
           </div>
         </div>
 
@@ -149,7 +150,7 @@ export default function LoanDetail() {
               ) : cuotas.map(inst => (
                 <tr key={inst.id} className="hover:bg-primary/5 transition-colors group">
                   <td className="p-4 font-bold text-muted-foreground">#{inst.numero_cuota}</td>
-                  <td className="p-4 font-medium">{new Date(inst.fecha_vencimiento).toLocaleDateString()}</td>
+                  <td className="p-4 font-medium">{formatDateDisplay(inst.fecha_vencimiento)}</td>
                   <td className="p-4 font-bold">{formatCurrency(inst.monto_cuota)}</td>
                   <td className="p-4 text-status-green font-medium">{formatCurrency(inst.monto_cobrado)}</td>
                   <td className="p-4">

@@ -1,6 +1,7 @@
 import { formatCurrency } from '@/data/mockData';
 import { useNavigate } from 'react-router-dom';
 import { useCuotasPendientes } from '@/hooks/useCuotasPendientes';
+import { formatDateDisplay } from '@/lib/utils';
 
 export default function CollectorPending() {
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export default function CollectorPending() {
               <tr key={p.id} onClick={() => navigate(`/registrar-pago?prestamo=${p.prestamos?.id}`)} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer">
                 <td className="p-3 font-medium">{clienteNombre}</td>
                 <td className="p-3">#{p.numero_cuota}</td>
-                <td className="p-3">{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
+                <td className="p-3">{formatDateDisplay(p.fecha_vencimiento)}</td>
                 <td className="p-3">{formatCurrency(montoRestante)}</td>
                 <td className={`p-3 ${statusColor(p.estado)}`}>{statusLabel(p.estado)}</td>
               </tr>
@@ -75,7 +76,7 @@ export default function CollectorPending() {
               <span className={`text-xs ${statusColor(p.estado)}`}>{statusLabel(p.estado)}</span>
             </div>
             <div className="flex justify-between mt-2 text-sm">
-              <span className="text-muted-foreground">Cuota #{p.numero_cuota} — {new Date(p.fecha_vencimiento).toLocaleDateString()}</span>
+              <span className="text-muted-foreground">Cuota #{p.numero_cuota} — {formatDateDisplay(p.fecha_vencimiento)}</span>
               <span className="font-medium">{formatCurrency(montoRestante)}</span>
             </div>
           </button>

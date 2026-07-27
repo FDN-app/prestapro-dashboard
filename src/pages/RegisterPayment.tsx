@@ -12,6 +12,7 @@ import { useClientes } from '@/hooks/useClientes';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCuotas } from '@/hooks/useCuotas';
 import { usePagos } from '@/hooks/usePagos';
+import { formatDateDisplay } from '@/lib/utils';
 
 export default function RegisterPayment() {
   const navigate = useNavigate();
@@ -98,7 +99,7 @@ export default function RegisterPayment() {
           <Label>Préstamo *</Label>
           <select value={loanId} onChange={e => setLoanId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" disabled={!clientId}>
             <option value="">Seleccionar préstamo</option>
-            {clientLoans.map(l => <option key={l.id} value={l.id}>[{new Date(l.fecha_inicio).toLocaleDateString()}] Saldo: {formatCurrency(l.saldo_pendiente)}</option>)}
+            {clientLoans.map(l => <option key={l.id} value={l.id}>[{formatDateDisplay(l.fecha_inicio)}] Saldo: {formatCurrency(l.saldo_pendiente)}</option>)}
           </select>
         </div>
 

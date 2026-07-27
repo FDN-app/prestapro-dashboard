@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
+import { formatDateDisplay } from '@/lib/utils';
 
 function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string }) {
   const navigate = useNavigate();
@@ -180,7 +181,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Fecha de Inicio</span>
-            <span className="font-medium">{new Date(loan.fecha_inicio).toLocaleDateString()}</span>
+            <span className="font-medium">{formatDateDisplay(loan.fecha_inicio)}</span>
           </div>
         </div>
 
@@ -241,7 +242,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                              <p className="text-sm font-medium">{formatCurrency(actual_cuota)}</p>
                           )}
                           
-                          <p className="text-xs text-muted-foreground">Vence: {new Date(cuota.fecha_vencimiento).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted-foreground">Vence: {formatDateDisplay(cuota.fecha_vencimiento)}</p>
                           
                           {cuota.estado === 'parcial' && (
                              <div className="flex items-center gap-2 mt-1 text-[11px] font-medium">

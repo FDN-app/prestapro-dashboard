@@ -11,6 +11,7 @@ import GananciasReporte from '@/components/dashboard/GananciasReporte';
 import { useSuscripcion } from '@/hooks/useSuscripcion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, CreditCard } from 'lucide-react';
+import { formatDateDisplay } from '@/lib/utils';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -289,7 +290,7 @@ function PrestamosTable() {
                 <td className="p-3 text-muted-foreground font-medium border-b border-border/50 whitespace-nowrap">{formatFreq(p)}</td>
                 <td className="p-3 text-muted-foreground border-b border-border/50">{(p as any).comision_cancelados ? formatCurrency((p as any).comision_cancelados) : '-'}</td>
                 <td className="p-3 text-muted-foreground border-b border-border/50">{(p as any).renovados ? formatCurrency((p as any).renovados) : '-'}</td>
-                <td className="p-3 text-muted-foreground whitespace-nowrap border-b border-border/50">{new Date(p.fecha_inicio).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap border-b border-border/50">{formatDateDisplay(p.fecha_inicio, true)}</td>
                 
                 <td className="p-3 bg-primary/5 font-semibold text-foreground border-b border-border/50 whitespace-nowrap">{formatCurrency(sumaTotalSemanales)}</td>
                 <td className="p-3 bg-primary/5 font-semibold text-foreground border-b border-border/50 whitespace-nowrap">{formatCurrency(pagadoAdmin)}</td>
