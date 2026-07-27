@@ -94,7 +94,7 @@ export default function LoanDetail() {
           </div>
           <div className="space-y-1">
             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Tasa e Interés</p>
-            <p className="text-lg font-bold">{loan.tasa_interes}% <span className="text-xs font-medium text-muted-foreground">({loan.frecuencia_pago})</span></p>
+            <p className="text-lg font-bold">{loan.tasa_interes}% <span className="text-xs font-medium text-muted-foreground">({loan.frecuencia_pago === 'personalizado' || loan.frecuencia_pago === 'diario' ? 'diario' : loan.frecuencia_pago})</span></p>
           </div>
           <div className="space-y-1">
              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Inicio del Crédito</p>

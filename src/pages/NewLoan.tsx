@@ -52,7 +52,8 @@ export default function NewLoan() {
   const [comision, setComision] = useState<string>(savedDraft?.comision !== undefined ? savedDraft.comision : '');
   const [renovados, setRenovados] = useState<string>(savedDraft?.renovados !== undefined ? savedDraft.renovados : '');
   const [rateType, setRateType] = useState<'fijo' | 'variable'>(savedDraft?.rateType || 'fijo');
-  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'personalizado'>(savedDraft?.frequency || 'semanal');
+  const initialFrequency = savedDraft?.frequency === 'personalizado' ? 'diario' : (savedDraft?.frequency || 'semanal');
+  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'diario'>(initialFrequency);
   const [customDays, setCustomDays] = useState<string>(savedDraft?.customDays !== undefined ? savedDraft.customDays : '');
   const [installments, setInstallments] = useState<string>(savedDraft?.installments !== undefined ? savedDraft.installments : '');
   const [promissory, setPromissory] = useState(savedDraft?.promissory !== undefined ? savedDraft.promissory : false);
@@ -140,34 +141,54 @@ export default function NewLoan() {
     return insts > 0 ? Math.round(totalToPay / insts) : 0;
   }, [totalToPay, installments]);
 
-  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 14 : frequency === 'mensual' ? 30 : (Number(customDays) || 0);
+  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 15 : frequency === 'mensual' ? 30 : 1;
+
+  const addInterval = (baseDate: Date, freq: 'semanal' | 'quincenal' | 'mensual' | 'diario', count: number): Date => {
+    const d = new Date(baseDate.getTime());
+    if (freq === 'diario') {
+      d.setDate(d.getDate() + count);
+    } else if (freq === 'semanal') {
+      d.setDate(d.getDate() + count * 7);
+    } else if (freq === 'quincenal') {
+      d.setDate(d.getDate() + count * 15);
+    } else if (freq === 'mensual') {
+      d.setMonth(d.getMonth() + count);
+    }
+    return d;
+  };
 
   const schedule = useMemo(() => {
     let startD = new Date();
-    if (firstInstallmentDate) {
-      // Parse YYYY-MM-DD cleanly to avoid timezone offsets
-      const [y, m, d] = firstInstallmentDate.split('-');
-      // Start date exactly at that day (we don't add freqDays for the first installment if manual)
-      startD = new Date(Number(y), Number(m) - 1, Number(d));
-    } else {
-      // Default behavior: add freqdays
-      startD.setDate(startD.getDate() + freqDays);
-    }
-    
     const insts = Number(installments) || 0;
-    return Array.from({ length: insts }, (_, i) => {
-      const d = new Date(startD);
-      // For manual date, first installment is exactly that date, subsequent are + freqDays
-      d.setDate(d.getDate() + freqDays * i);
+    
+    if (firstInstallmentDate) {
+      // Manual mode: first installment is exactly firstInstallmentDate.
+      const [y, m, d] = firstInstallmentDate.split('-');
+      startD = new Date(Number(y), Number(m) - 1, Number(d));
       
-      return {
-        number: i + 1,
-        date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        rawDate: formatDateLocal(d),
-        amount: perInstallment,
-      };
-    });
-  }, [installments, freqDays, perInstallment, firstInstallmentDate]);
+      return Array.from({ length: insts }, (_, i) => {
+        const d = addInterval(startD, frequency, i);
+        return {
+          number: i + 1,
+          date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          rawDate: formatDateLocal(d),
+          amount: perInstallment,
+        };
+      });
+    } else {
+      // Automatic mode: first installment is today + 1 interval.
+      // fecha_inicio is today (startD).
+      return Array.from({ length: insts }, (_, i) => {
+        const d = addInterval(startD, frequency, i + 1);
+        return {
+          number: i + 1,
+          date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          rawDate: formatDateLocal(d),
+          amount: perInstallment,
+        };
+      });
+    }
+  }, [installments, frequency, perInstallment, firstInstallmentDate]);
 
   const { createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando } = usePrestamos();
   const oldLoanId = params.get('refinanciar');
@@ -184,11 +205,6 @@ export default function NewLoan() {
     
     if (!installments) newErrors.installments = 'Campo requerido';
     else if (Number(installments) <= 0) newErrors.installments = 'Las cuotas deben ser mayor a 0';
-    
-    if (frequency === 'personalizado') {
-      if (!customDays) newErrors.customDays = 'Campo requerido';
-      else if (Number(customDays) <= 0) newErrors.customDays = 'Los días deben ser mayor a 0';
-    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -197,9 +213,23 @@ export default function NewLoan() {
     }
     
     // Preparar el payload para el RPC
-    const defaultFirstDate = new Date();
-    defaultFirstDate.setDate(defaultFirstDate.getDate() + freqDays);
-    const fechaPrimCuota = firstInstallmentDate || formatDateLocal(defaultFirstDate);
+    const hoyStr = formatDateLocal(new Date());
+    let fechaInicioPayload = hoyStr;
+    let fechaPrimCuotaPayload = '';
+
+    if (firstInstallmentDate) {
+      fechaInicioPayload = firstInstallmentDate;
+      fechaPrimCuotaPayload = firstInstallmentDate;
+    } else {
+      fechaInicioPayload = hoyStr;
+      if (schedule.length > 0) {
+        fechaPrimCuotaPayload = schedule[0].rawDate;
+      } else {
+        const d = new Date();
+        const nextDate = addInterval(d, frequency, 1);
+        fechaPrimCuotaPayload = formatDateLocal(nextDate);
+      }
+    }
 
     let payload: any = {
       p_cliente_id: clientId,
@@ -209,9 +239,9 @@ export default function NewLoan() {
       p_tipo_interes: rateType,
       p_cantidad_cuotas: Number(installments),
       p_frecuencia_pago: frequency,
-      p_frecuencia_dias: frequency === 'personalizado' ? Number(customDays) : freqDays,
-      p_fecha_inicio: fechaPrimCuota,
-      p_fecha_primera_cuota: fechaPrimCuota,
+      p_frecuencia_dias: freqDays,
+      p_fecha_inicio: fechaInicioPayload,
+      p_fecha_primera_cuota: fechaPrimCuotaPayload,
       p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
       p_renovados: renovados ? Number(renovados) : null,
       p_cuotas: schedule.map(s => {
@@ -335,70 +365,31 @@ export default function NewLoan() {
             <div className="space-y-2">
               <Label>Frecuencia *</Label>
               <select value={frequency} onChange={e => setFrequency(e.target.value as any)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                <option value="diario">Diario</option>
                 <option value="semanal">Semanal</option>
                 <option value="quincenal">Quincenal</option>
                 <option value="mensual">Mensual (30 d)</option>
-                <option value="personalizado">Personalizado</option>
               </select>
             </div>
-            {frequency === 'personalizado' ? (
-              <div className="space-y-2">
-                <Label>Días *</Label>
-                <Input 
-                  type="number" 
-                  placeholder="Ej: 28" 
-                  value={customDays} 
-                  onChange={e => {
-                    setCustomDays(e.target.value);
-                    if (errors.customDays) setErrors(prev => ({ ...prev, customDays: '' }));
-                  }} 
-                />
-                {errors.customDays && (
-                  <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
-                    {errors.customDays}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Cuotas *</Label>
-                <Input 
-                  type="number" 
-                  placeholder="Ej: 12" 
-                  value={installments} 
-                  onChange={e => {
-                    setInstallments(e.target.value);
-                    if (errors.installments) setErrors(prev => ({ ...prev, installments: '' }));
-                  }} 
-                />
-                {errors.installments && (
-                  <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
-                    {errors.installments}
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Cuotas *</Label>
+              <Input 
+                type="number" 
+                placeholder="Ej: 12" 
+                value={installments} 
+                onChange={e => {
+                  setInstallments(e.target.value);
+                  if (errors.installments) setErrors(prev => ({ ...prev, installments: '' }));
+                }} 
+              />
+              {errors.installments && (
+                <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
+                  {errors.installments}
+                </p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {frequency === 'personalizado' && (
-              <div className="space-y-2">
-                <Label>Cuotas *</Label>
-                <Input 
-                  type="number" 
-                  placeholder="Ej: 12" 
-                  value={installments} 
-                  onChange={e => {
-                    setInstallments(e.target.value);
-                    if (errors.installments) setErrors(prev => ({ ...prev, installments: '' }));
-                  }} 
-                />
-                {errors.installments && (
-                  <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
-                    {errors.installments}
-                  </p>
-                )}
-              </div>
-            )}
             <div className="space-y-2 flex flex-col justify-end">
               <Label>1° Cuota (Automático si vacío)</Label>
               <Popover>
