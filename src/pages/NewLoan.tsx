@@ -210,7 +210,7 @@ export default function NewLoan() {
       p_cantidad_cuotas: Number(installments),
       p_frecuencia_pago: frequency,
       p_frecuencia_dias: frequency === 'personalizado' ? Number(customDays) : freqDays,
-      p_fecha_inicio: new Date().toISOString().split('T')[0],
+      p_fecha_inicio: fechaPrimCuota,
       p_fecha_primera_cuota: fechaPrimCuota,
       p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
       p_renovados: renovados ? Number(renovados) : null,
