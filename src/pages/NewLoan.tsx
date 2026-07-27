@@ -24,6 +24,13 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function NewLoan() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -163,7 +170,7 @@ export default function NewLoan() {
       return {
         number: i + 1,
         date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        rawDate: d.toISOString().split('T')[0],
+        rawDate: formatDateLocal(d),
         amount: perInstallment,
       };
     });
@@ -199,7 +206,7 @@ export default function NewLoan() {
     // Preparar el payload para el RPC
     const defaultFirstDate = new Date();
     defaultFirstDate.setDate(defaultFirstDate.getDate() + freqDays);
-    const fechaPrimCuota = firstInstallmentDate || defaultFirstDate.toISOString().split('T')[0];
+    const fechaPrimCuota = firstInstallmentDate || formatDateLocal(defaultFirstDate);
 
     let payload: any = {
       p_cliente_id: clientId,
