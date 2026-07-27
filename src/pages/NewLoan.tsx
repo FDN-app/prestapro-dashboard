@@ -159,35 +159,21 @@ export default function NewLoan() {
 
   const schedule = useMemo(() => {
     let startD = new Date();
-    const insts = Number(installments) || 0;
-    
     if (firstInstallmentDate) {
-      // Manual mode: first installment is exactly firstInstallmentDate.
       const [y, m, d] = firstInstallmentDate.split('-');
       startD = new Date(Number(y), Number(m) - 1, Number(d));
-      
-      return Array.from({ length: insts }, (_, i) => {
-        const d = addInterval(startD, frequency, i);
-        return {
-          number: i + 1,
-          date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-          rawDate: formatDateLocal(d),
-          amount: perInstallment,
-        };
-      });
-    } else {
-      // Automatic mode: first installment is today + 1 interval.
-      // fecha_inicio is today (startD).
-      return Array.from({ length: insts }, (_, i) => {
-        const d = addInterval(startD, frequency, i + 1);
-        return {
-          number: i + 1,
-          date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-          rawDate: formatDateLocal(d),
-          amount: perInstallment,
-        };
-      });
     }
+    
+    const insts = Number(installments) || 0;
+    return Array.from({ length: insts }, (_, i) => {
+      const d = addInterval(startD, frequency, i + 1);
+      return {
+        number: i + 1,
+        date: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        rawDate: formatDateLocal(d),
+        amount: perInstallment,
+      };
+    });
   }, [installments, frequency, perInstallment, firstInstallmentDate]);
 
   const { createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando } = usePrestamos();
@@ -214,21 +200,18 @@ export default function NewLoan() {
     
     // Preparar el payload para el RPC
     const hoyStr = formatDateLocal(new Date());
-    let fechaInicioPayload = hoyStr;
+    const fechaInicioPayload = firstInstallmentDate || hoyStr;
+    
     let fechaPrimCuotaPayload = '';
-
-    if (firstInstallmentDate) {
-      fechaInicioPayload = firstInstallmentDate;
-      fechaPrimCuotaPayload = firstInstallmentDate;
+    if (schedule.length > 0) {
+      fechaPrimCuotaPayload = schedule[0].rawDate;
     } else {
-      fechaInicioPayload = hoyStr;
-      if (schedule.length > 0) {
-        fechaPrimCuotaPayload = schedule[0].rawDate;
-      } else {
-        const d = new Date();
-        const nextDate = addInterval(d, frequency, 1);
-        fechaPrimCuotaPayload = formatDateLocal(nextDate);
-      }
+      const baseD = firstInstallmentDate ? (() => {
+        const [y, m, d] = firstInstallmentDate.split('-');
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      })() : new Date();
+      const nextDate = addInterval(baseD, frequency, 1);
+      fechaPrimCuotaPayload = formatDateLocal(nextDate);
     }
 
     let payload: any = {
