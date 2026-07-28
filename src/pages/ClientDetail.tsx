@@ -173,7 +173,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Cuotas (Frecuencia)</span>
-            <span className="font-medium">{cantidadReal} ({loan.frecuencia_pago === 'personalizado' || loan.frecuencia_pago === 'diario' ? 'diario' : loan.frecuencia_pago})</span>
+            <span className="font-medium">{cantidadReal} ({loan.frecuencia_pago === 'personalizado' ? (loan.frecuencia_dias ? `cada ${loan.frecuencia_dias} días` : 'personalizado') : loan.frecuencia_pago})</span>
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Valor de Cuota</span>

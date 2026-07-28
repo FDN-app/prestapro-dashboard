@@ -198,7 +198,7 @@ export default function Clients() {
                   {displayLoans.map((p: any, index: number) => {
                     const interesMonto = p.monto_original * (p.tasa_interes / 100);
                     const cuotasPagadas = p.cuotas?.filter((q: any) => q.estado === 'pagada').length || 0;
-                    const progreso = `${cuotasPagadas}/${p.cantidad_cuotas} ${p.frecuencia_pago === 'personalizado' || p.frecuencia_pago === 'diario' ? 'diario' : p.frecuencia_pago}`;
+                    const progreso = `${cuotasPagadas}/${p.cantidad_cuotas} ${p.frecuencia_pago === 'personalizado' ? (p.frecuencia_dias ? `cada ${p.frecuencia_dias} días` : 'personalizado') : p.frecuencia_pago}`;
                     
                     return (
                       <tr 

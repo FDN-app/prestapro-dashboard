@@ -52,8 +52,8 @@ export default function NewLoan() {
   const [comision, setComision] = useState<string>(savedDraft?.comision !== undefined ? savedDraft.comision : '');
   const [renovados, setRenovados] = useState<string>(savedDraft?.renovados !== undefined ? savedDraft.renovados : '');
   const [rateType, setRateType] = useState<'fijo' | 'variable'>(savedDraft?.rateType || 'fijo');
-  const initialFrequency = savedDraft?.frequency === 'personalizado' ? 'diario' : (savedDraft?.frequency || 'semanal');
-  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'diario'>(initialFrequency);
+  const initialFrequency = savedDraft?.frequency || 'semanal';
+  const [frequency, setFrequency] = useState<'semanal' | 'quincenal' | 'mensual' | 'diario' | 'personalizado'>(initialFrequency);
   const [customDays, setCustomDays] = useState<string>(savedDraft?.customDays !== undefined ? savedDraft.customDays : '');
   const [installments, setInstallments] = useState<string>(savedDraft?.installments !== undefined ? savedDraft.installments : '');
   const [promissory, setPromissory] = useState(savedDraft?.promissory !== undefined ? savedDraft.promissory : false);
@@ -141,9 +141,9 @@ export default function NewLoan() {
     return insts > 0 ? Math.round(totalToPay / insts) : 0;
   }, [totalToPay, installments]);
 
-  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 15 : frequency === 'mensual' ? 30 : 1;
+  const freqDays = frequency === 'semanal' ? 7 : frequency === 'quincenal' ? 15 : frequency === 'mensual' ? 30 : frequency === 'personalizado' ? (Number(customDays) || 1) : 1;
 
-  const addInterval = (baseDate: Date, freq: 'semanal' | 'quincenal' | 'mensual' | 'diario', count: number): Date => {
+  const addInterval = (baseDate: Date, freq: 'semanal' | 'quincenal' | 'mensual' | 'diario' | 'personalizado', count: number): Date => {
     const d = new Date(baseDate.getTime());
     if (freq === 'diario') {
       d.setDate(d.getDate() + count);
@@ -153,6 +153,9 @@ export default function NewLoan() {
       d.setDate(d.getDate() + count * 15);
     } else if (freq === 'mensual') {
       d.setMonth(d.getMonth() + count);
+    } else if (freq === 'personalizado') {
+      const days = Number(customDays) || 1;
+      d.setDate(d.getDate() + count * days);
     }
     return d;
   };
@@ -191,6 +194,17 @@ export default function NewLoan() {
     
     if (!installments) newErrors.installments = 'Campo requerido';
     else if (Number(installments) <= 0) newErrors.installments = 'Las cuotas deben ser mayor a 0';
+
+    if (frequency === 'personalizado') {
+      if (!customDays) {
+        newErrors.customDays = 'Campo requerido';
+      } else {
+        const parsed = Number(customDays);
+        if (isNaN(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+          newErrors.customDays = 'Debe ser un número entero mayor o igual a 1';
+        }
+      }
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -344,16 +358,49 @@ export default function NewLoan() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cn("grid gap-3", frequency === 'personalizado' ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2")}>
             <div className="space-y-2">
               <Label>Frecuencia *</Label>
-              <select value={frequency} onChange={e => setFrequency(e.target.value as any)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+              <select 
+                value={frequency} 
+                onChange={e => {
+                  const val = e.target.value as any;
+                  setFrequency(val);
+                  if (val !== 'personalizado') {
+                    setCustomDays('');
+                    if (errors.customDays) setErrors(prev => ({ ...prev, customDays: '' }));
+                  }
+                }} 
+                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              >
                 <option value="diario">Diario</option>
                 <option value="semanal">Semanal</option>
                 <option value="quincenal">Quincenal</option>
                 <option value="mensual">Mensual (30 d)</option>
+                <option value="personalizado">Personalizado</option>
               </select>
             </div>
+            {frequency === 'personalizado' && (
+              <div className="space-y-2">
+                <Label>Días entre cuotas *</Label>
+                <Input 
+                  type="number" 
+                  min="1"
+                  step="1"
+                  placeholder="Ej: 20" 
+                  value={customDays} 
+                  onChange={e => {
+                    setCustomDays(e.target.value);
+                    if (errors.customDays) setErrors(prev => ({ ...prev, customDays: '' }));
+                  }} 
+                />
+                {errors.customDays && (
+                  <p className="text-xs font-medium text-destructive mt-1 animate-in fade-in-50 duration-200">
+                    {errors.customDays}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Cuotas *</Label>
               <Input 
@@ -374,7 +421,7 @@ export default function NewLoan() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2 flex flex-col justify-end">
-              <Label>1° Cuota (Automático si vacío)</Label>
+              <Label>Inicio de préstamo</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button

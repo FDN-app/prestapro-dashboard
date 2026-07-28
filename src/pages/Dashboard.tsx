@@ -232,7 +232,8 @@ function PrestamosTable() {
     if (p.frecuencia_pago === 'semanal') return `${p.cantidad_cuotas}s`;
     if (p.frecuencia_pago === 'quincenal') return `${p.cantidad_cuotas}q`;
     if (p.frecuencia_pago === 'mensual') return `${p.cantidad_cuotas}m`;
-    if (p.frecuencia_pago === 'diario' || p.frecuencia_pago === 'personalizado') return `${p.cantidad_cuotas}d`;
+    if (p.frecuencia_pago === 'diario') return `${p.cantidad_cuotas}d`;
+    if (p.frecuencia_pago === 'personalizado') return `${p.cantidad_cuotas}c (cada ${p.frecuencia_dias}d)`;
     return `${p.cantidad_cuotas}c`;
   };
 
