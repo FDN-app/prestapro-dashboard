@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { formatCurrency, statusLabel, statusColor } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
-import { Pencil, Plus, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pencil, Plus, ArrowLeft, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCuotas } from '@/hooks/useCuotas';
@@ -24,6 +24,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
 import { formatDateDisplay } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string }) {
   const navigate = useNavigate();
@@ -48,7 +54,25 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   const [payPartialNotes, setPayPartialNotes] = useState('');
 
   const { cuotas, isLoading } = useCuotas(loan.id); 
-  const { extenderPrestamo, isExtendiendo } = usePrestamos();
+  const { extenderPrestamo, isExtendiendo, updatePrestamo } = usePrestamos();
+
+  const handleArchive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updatePrestamo({ id: loan.id, updates: { archivado: true } });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleUnarchive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updatePrestamo({ id: loan.id, updates: { archivado: false } });
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handlePagarTodoClick = (cuota: any, restante: number) => {
     setSelectedCuotaPayAll(cuota);
@@ -143,18 +167,53 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden transition-all duration-300">
-      <button
+    <div className={`bg-card rounded-lg border border-border overflow-hidden transition-all duration-300 ${loan.archivado ? 'opacity-70 border-dashed bg-card/60' : ''}`}>
+      <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 text-left hover:bg-secondary/50 transition-colors flex flex-col gap-4"
+        className="w-full p-4 text-left hover:bg-secondary/50 transition-colors flex flex-col gap-4 cursor-pointer"
       >
         <div className="flex items-center justify-between w-full">
           <span className="font-medium text-foreground">Préstamo #{loan.id.substring(0, 8)}...</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {loan.archivado && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border font-bold uppercase tracking-wider">
+                Archivado
+              </span>
+            )}
             <span className={`text-xs px-2 py-0.5 rounded-full ${isPagado ? 'bg-status-green/10 text-status-green' : (loan.estado === 'mora' ? 'bg-status-red/10 text-status-red' : 'bg-primary/10 text-primary')}`}>
               {loan.estado.charAt(0).toUpperCase() + loan.estado.slice(1)}
             </span>
-            {isExpanded ? <ChevronUp size={18} className="text-muted-foreground" /> : <ChevronDown size={18} className="text-muted-foreground" />}
+            
+            {((isPagado && !loan.archivado) || loan.archivado) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                    <MoreVertical size={16} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {isPagado && !loan.archivado && (
+                    <DropdownMenuItem onClick={handleArchive}>
+                      Archivar
+                    </DropdownMenuItem>
+                  )}
+                  {loan.archivado && (
+                    <DropdownMenuItem onClick={handleUnarchive}>
+                      Desarchivar
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground p-0"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </Button>
           </div>
         </div>
         
@@ -194,7 +253,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
             <div className="bg-primary rounded-full h-2 transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
-      </button>
+      </div>
 
       {isExpanded && (
         <div className="border-t border-border bg-background/50 p-4 animate-in slide-in-from-top-2 duration-300">
@@ -450,6 +509,7 @@ export default function ClientDetail() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [showArchivedLoans, setShowArchivedLoans] = useState(false);
   const [editForm, setEditForm] = useState({
     nombre_completo: '',
     telefono: '',
@@ -463,7 +523,9 @@ export default function ClientDetail() {
   }
 
   const client = clientes.find(c => c.id === id);
-  const clientLoans = prestamos.filter(l => l.cliente_id === id);
+  const clientLoans = prestamos
+    .filter(l => l.cliente_id === id)
+    .filter(l => showArchivedLoans || !l.archivado);
 
   if (!client) return <div className="p-6">Cliente no encontrado.</div>;
 
@@ -617,16 +679,32 @@ export default function ClientDetail() {
 
       {/* Historial de Préstamos */}
       <div className="pt-2">
-        <div className="flex flex-row items-end justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold">Historial de Préstamos</h3>
             <p className={`text-xs mt-1 py-0.5 ${goodPayer ? 'status-green' : 'status-yellow'}`}>
               {goodPayer ? '⭐ Buen comportamiento de pago' : '⚠️ Posee deudas y/o irregularidades'}
             </p>
           </div>
-          <Button size="sm" onClick={() => navigate(`/nuevo-prestamo?clientId=${id}`)}>
-            <Plus size={16} className="mr-1" /> Préstamo
-          </Button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex bg-secondary rounded-lg p-0.5 border border-border text-xs">
+              <button 
+                onClick={() => setShowArchivedLoans(false)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${!showArchivedLoans ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Activos
+              </button>
+              <button 
+                onClick={() => setShowArchivedLoans(true)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${showArchivedLoans ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Ver archivados
+              </button>
+            </div>
+            <Button size="sm" onClick={() => navigate(`/nuevo-prestamo?clientId=${id}`)}>
+              <Plus size={16} className="mr-1" /> Préstamo
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-3">

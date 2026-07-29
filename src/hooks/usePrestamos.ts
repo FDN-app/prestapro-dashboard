@@ -16,6 +16,7 @@ export interface Prestamo {
   fecha_inicio: string;
   cantidad_renovaciones: number;
   estado: string;
+  archivado?: boolean;
   clientes?: {
     nombre_completo: string;
     dni: string;
@@ -69,8 +70,12 @@ export function usePrestamos() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      toast.success('Préstamo actualizado');
+    onSuccess: (data, variables) => {
+      if (variables.updates.archivado !== undefined) {
+        toast.success(variables.updates.archivado ? 'Préstamo archivado' : 'Préstamo desarchivado');
+      } else {
+        toast.success('Préstamo actualizado');
+      }
       queryClient.invalidateQueries({ queryKey: ['prestamos'] });
     },
     onError: (error) => {
