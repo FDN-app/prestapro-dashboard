@@ -512,6 +512,7 @@ export default function ClientDetail() {
   const [showArchivedLoans, setShowArchivedLoans] = useState(false);
   const [editForm, setEditForm] = useState({
     nombre_completo: '',
+    dni: '',
     telefono: '',
     direccion: '',
     notas: '',
@@ -534,6 +535,7 @@ export default function ClientDetail() {
   const handleEditClick = () => {
     setEditForm({
       nombre_completo: client.nombre_completo || '',
+      dni: client.dni || '',
       telefono: client.telefono || client.phone || '',
       direccion: client.direccion || '',
       notas: client.notas || '',
@@ -546,6 +548,7 @@ export default function ClientDetail() {
     try {
       await updateCliente({ id: client.id, updates: {
         nombre_completo: editForm.nombre_completo,
+        dni: editForm.dni,
         telefono: editForm.telefono,
         direccion: editForm.direccion,
         notas: editForm.notas,
@@ -731,6 +734,13 @@ export default function ClientDetail() {
               <Input 
                 value={editForm.nombre_completo} 
                 onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>DNI / Documento</Label>
+              <Input 
+                value={editForm.dni} 
+                onChange={e => setEditForm({...editForm, dni: e.target.value})} 
               />
             </div>
             <div className="space-y-2">

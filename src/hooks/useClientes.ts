@@ -5,8 +5,8 @@ import { toast } from 'sonner';
 export interface Cliente {
   id: string;
   nombre_completo: string;
-  dni: string;
-  telefono: string;
+  dni: string | null;
+  telefono: string | null;
   direccion: string | null;
   notas: string | null;
   telegram_chat_id?: string | null;
@@ -78,6 +78,8 @@ export function useClientes() {
         .from('clientes')
         .insert([{
           ...nuevoCliente,
+          dni: nuevoCliente.dni?.trim() || null,
+          telefono: nuevoCliente.telefono?.trim() || null,
           estado: 'activo'
         }])
         .select()
@@ -97,9 +99,16 @@ export function useClientes() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Cliente> }) => {
+      const sanitizedUpdates = { ...updates };
+      if ('dni' in sanitizedUpdates) {
+        sanitizedUpdates.dni = sanitizedUpdates.dni?.trim() || null;
+      }
+      if ('telefono' in sanitizedUpdates) {
+        sanitizedUpdates.telefono = sanitizedUpdates.telefono?.trim() || null;
+      }
       const { data, error } = await supabase
         .from('clientes')
-        .update(updates)
+        .update(sanitizedUpdates)
         .eq('id', id)
         .select()
         .single();

@@ -19,7 +19,7 @@ export interface Prestamo {
   archivado?: boolean;
   clientes?: {
     nombre_completo: string;
-    dni: string;
+    dni: string | null;
   };
   pagos?: {
     monto_pagado: number;

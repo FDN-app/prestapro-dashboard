@@ -52,11 +52,10 @@ export default function NewClient() {
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
     if (!formData.nombre_completo) newErrors.nombre_completo = 'Campo requerido';
-    if (!formData.telefono) newErrors.telefono = 'Campo requerido';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error('Nombre y teléfono son obligatorios');
+      toast.error('El nombre completo es obligatorio');
       return;
     }
     
@@ -136,7 +135,7 @@ export default function NewClient() {
           />
         </div>
         <div className="space-y-2">
-          <Label>Teléfono *</Label>
+          <Label>Teléfono</Label>
           <Input 
             value={formData.telefono} 
             onChange={e => {
