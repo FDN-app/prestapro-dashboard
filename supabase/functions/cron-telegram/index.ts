@@ -27,7 +27,7 @@ Deno.cron("Alertas Diarias Telegram", "0 12 * * *", async () => {
         }
 
         const chatId = settings.telegram_chat_id;
-        const diasPrevios = settings.telegram_dias_recordatorio || 2;
+        const diasPrevios = settings.telegram_dias_recordatorio ?? 2;
         const botToken = settings.telegram_bot_token;
 
         const enviarTelegram = async (mensaje: string, tipo: string) => {
@@ -82,7 +82,11 @@ Deno.cron("Alertas Diarias Telegram", "0 12 * * *", async () => {
                 .gte('fecha_vencimiento', hoyIso);
 
             if (porVencer && porVencer.length > 0) {
-                let mensaje = `📅 *Cuotas próximas a vencer (Próximos ${diasPrevios} días):*\n\n`;
+                let mensaje = diasPrevios === 0
+                    ? `📅 *Cuotas que vencen hoy:*\n\n`
+                    : diasPrevios === 1
+                    ? `📅 *Cuotas próximas a vencer (Próximo 1 día):*\n\n`
+                    : `📅 *Cuotas próximas a vencer (Próximos ${diasPrevios} días):*\n\n`;
                 porVencer.forEach((c: any) => {
                     const saldo = c.monto_cuota - (c.monto_cobrado || 0);
                     const nom = c.prestamos?.clientes?.nombre || "Cliente";

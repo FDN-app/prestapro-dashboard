@@ -80,7 +80,7 @@ export default function SettingsPage() {
         dias_recordatorio: settings.dias_recordatorio || 2,
         telegram_bot_token: settings.telegram_bot_token || '',
         telegram_alertas_activas: settings.telegram_alertas_activas || false,
-        telegram_dias_recordatorio: settings.telegram_dias_recordatorio || 2,
+        telegram_dias_recordatorio: settings.telegram_dias_recordatorio ?? 2,
         telegram_chat_id: settings.telegram_chat_id || ''
       });
     }
@@ -210,7 +210,10 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label>Días de aviso previo al vencimiento</Label>
             <select className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" value={form.telegram_dias_recordatorio} onChange={e => setForm({ ...form, telegram_dias_recordatorio: Number(e.target.value) })}>
-              <option value={1}>1 día antes</option><option value={2}>2 días antes</option><option value={3}>3 días antes</option>
+              <option value={0}>0 días antes (mismo día)</option>
+              <option value={1}>1 día antes</option>
+              <option value={2}>2 días antes</option>
+              <option value={3}>3 días antes</option>
             </select>
           </div>
           <div className="space-y-2">
