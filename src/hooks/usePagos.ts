@@ -8,6 +8,7 @@ export interface RegistrarPagoPayload {
   p_metodo: string;
   p_notas: string;
   p_es_cobro_directo_admin: boolean;
+  p_fecha_pago?: string | null;
 }
 
 export function usePagos() {
