@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { formatDateDisplay, cn, parseDateLocal } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { es } from "date-fns/locale";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -629,6 +630,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                       }
                     }}
                     initialFocus
+                    locale={es}
                   />
                 </PopoverContent>
               </Popover>

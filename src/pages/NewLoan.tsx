@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { es } from "date-fns/locale";
 
 export default function NewLoan() {
   const navigate = useNavigate();
@@ -455,6 +456,7 @@ export default function NewLoan() {
                       }
                     }}
                     initialFocus
+                    locale={es}
                   />
                 </PopoverContent>
               </Popover>
