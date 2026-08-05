@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { formatCurrency, statusLabel, statusColor } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
-import { Pencil, Plus, ArrowLeft, ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
+import { Pencil, Plus, ArrowLeft, ChevronDown, ChevronUp, MoreVertical, Calendar as CalendarIcon } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { usePrestamos } from '@/hooks/usePrestamos';
 import { useCuotas } from '@/hooks/useCuotas';
@@ -23,7 +23,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
-import { formatDateDisplay } from '@/lib/utils';
+import { formatDateDisplay, cn, parseDateLocal } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -52,6 +56,14 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   const [payPartialAmount, setPayPartialAmount] = useState('');
   const [payPartialMethod, setPayPartialMethod] = useState('efectivo');
   const [payPartialNotes, setPayPartialNotes] = useState('');
+
+  // Estados para Pago con Fecha
+  const [showPayDateModal, setShowPayDateModal] = useState(false);
+  const [selectedCuotaPayDate, setSelectedCuotaPayDate] = useState<any>(null);
+  const [payDateAmount, setPayDateAmount] = useState('');
+  const [payDateValue, setPayDateValue] = useState<string>(''); // YYYY-MM-DD
+  const [payDateMethod, setPayDateMethod] = useState('efectivo');
+  const [payDateNotes, setPayDateNotes] = useState('');
 
   const { cuotas, isLoading } = useCuotas(loan.id); 
   const { extenderPrestamo, isExtendiendo, updatePrestamo } = usePrestamos();
@@ -133,6 +145,60 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
       });
       setShowPayPartialModal(false);
       toast.success('Pago parcial registrado. Saldo aplicado a la próxima cuota si corresponde.');
+    } catch (e) {
+      // error toast managed by hook
+    }
+  };
+
+  const handlePagarConFechaClick = (cuota: any, restante: number) => {
+    setSelectedCuotaPayDate(cuota);
+    setPayDateAmount(String(restante));
+    
+    // Set date to today (YYYY-MM-DD in local time)
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setPayDateValue(`${yyyy}-${mm}-${dd}`);
+    
+    setPayDateMethod('efectivo');
+    setPayDateNotes('');
+    setShowPayDateModal(true);
+  };
+
+  const handleConfirmPayDate = async () => {
+    if (!selectedCuotaPayDate || !payDateAmount) {
+      toast.error('Por favor ingrese el monto pagado');
+      return;
+    }
+    if (!payDateValue) {
+      toast.error('Por favor seleccione una fecha de pago');
+      return;
+    }
+
+    const amountNum = Number(payDateAmount);
+
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error('El monto debe ser mayor a 0');
+      return;
+    }
+
+    if (amountNum > Number(loan.saldo_pendiente)) {
+      toast.error(`El monto NO puede ser mayor al saldo total pendiente del préstamo (${formatCurrency(loan.saldo_pendiente)})`);
+      return;
+    }
+
+    try {
+      await registrarPago({
+        p_prestamo_id: loan.id,
+        p_monto: amountNum,
+        p_metodo: payDateMethod,
+        p_notas: payDateNotes,
+        p_es_cobro_directo_admin: false,
+        p_fecha_pago: payDateValue,
+      });
+      setShowPayDateModal(false);
+      toast.success('Pago con fecha registrado correctamente.');
     } catch (e) {
       // error toast managed by hook
     }
@@ -332,6 +398,14 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                             >
                               💰 Pagó parcial
                             </Button>
+                            <Button 
+                              size="sm"
+                              className="h-7 text-xs bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-semibold transition-colors w-full sm:w-auto flex items-center justify-center gap-1"
+                              onClick={() => handlePagarConFechaClick(cuota, restante)}
+                            >
+                              <CalendarIcon size={13} />
+                              <span>Pago con fecha</span>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -495,6 +569,109 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Registrar Pago con Fecha */}
+      <Dialog open={showPayDateModal} onOpenChange={setShowPayDateModal}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Registrar pago con fecha</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4 text-left">
+            {selectedCuotaPayDate && (
+              <p className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded border border-border">
+                Cuota #{selectedCuotaPayDate.numero_cuota} — Restante: <span className="font-semibold text-foreground">{formatCurrency(Number(selectedCuotaPayDate.monto_cuota) - (Number(selectedCuotaPayDate.monto_cobrado) || 0))}</span>.
+              </p>
+            )}
+            
+            {/* Monto */}
+            <div className="space-y-2">
+              <Label htmlFor="pay-date-amount">Monto pagado ($) *</Label>
+              <Input 
+                id="pay-date-amount"
+                type="number"
+                value={payDateAmount}
+                onChange={e => setPayDateAmount(e.target.value)}
+                placeholder="0"
+                required
+              />
+            </div>
+
+            {/* Fecha */}
+            <div className="space-y-2 flex flex-col">
+              <Label>Fecha de pago *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-between text-left font-normal h-10 px-3 py-2 border border-input rounded-md text-sm text-foreground bg-[#252B48] hover:bg-[#252B48]/90"
+                    )}
+                  >
+                    <span>
+                      {payDateValue ? (() => {
+                        const [y, m, d] = payDateValue.split('-');
+                        return `${d}/${m}/${y}`;
+                      })() : "Seleccionar fecha"}
+                    </span>
+                    <CalendarIcon className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-popover border border-border" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={payDateValue ? parseDateLocal(payDateValue) : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        const yyyy = date.getFullYear();
+                        const mm = String(date.getMonth() + 1).padStart(2, '0');
+                        const dd = String(date.getDate()).padStart(2, '0');
+                        setPayDateValue(`${yyyy}-${mm}-${dd}`);
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Método */}
+            <div className="space-y-2">
+              <Label htmlFor="pay-date-method">Método de pago</Label>
+              <select 
+                id="pay-date-method" 
+                value={payDateMethod} 
+                onChange={e => setPayDateMethod(e.target.value)} 
+                className="w-full bg-[#252B48] border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+
+            {/* Notas */}
+            <div className="space-y-2">
+              <Label htmlFor="pay-date-notes">Notas</Label>
+              <Textarea 
+                id="pay-date-notes"
+                value={payDateNotes}
+                onChange={e => setPayDateNotes(e.target.value)}
+                placeholder="Notas opcionales..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDateModal(false)}>Cancelar</Button>
+            <Button 
+              onClick={handleConfirmPayDate} 
+              disabled={isRegistrando}
+              className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-semibold"
+            >
+              {isRegistrando ? 'Registrando...' : 'Confirmar pago'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -506,6 +683,30 @@ export default function ClientDetail() {
   
   const { clientes, isLoading: isLoadingClientes, updateCliente, isUpdating } = useClientes();
   const { prestamos, isLoading: isLoadingPrestamos } = usePrestamos();
+
+  const allClientLoans = useMemo(() => {
+    if (!id || !prestamos) return [];
+    return prestamos.filter(l => l.cliente_id === id);
+  }, [prestamos, id]);
+
+  const loanIds = useMemo(() => allClientLoans.map(l => l.id), [allClientLoans]);
+
+  const { data: allCuotas = [], isLoading: isLoadingAllCuotas } = useQuery({
+    queryKey: ['client-cuotas-score', id, loanIds],
+    queryFn: async () => {
+      if (loanIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('cuotas')
+        .select('*')
+        .in('prestamo_id', loanIds);
+      if (error) {
+        console.error(error);
+        return [];
+      }
+      return data;
+    },
+    enabled: loanIds.length > 0
+  });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -519,7 +720,7 @@ export default function ClientDetail() {
     telegram_chat_id: ''
   });
 
-  if (isLoadingClientes || isLoadingPrestamos) {
+  if (isLoadingClientes || isLoadingPrestamos || isLoadingAllCuotas) {
     return <div className="p-6 text-muted-foreground">Cargando datos del cliente...</div>;
   }
 
@@ -530,7 +731,56 @@ export default function ClientDetail() {
 
   if (!client) return <div className="p-6">Cliente no encontrado.</div>;
 
+  // Calcular atrasos
+  const { punctualityStatus, averageDelay } = (() => {
+    const paidCuotas = allCuotas.filter((c: any) => c.estado === 'pagada');
+    if (paidCuotas.length === 0) {
+      return { punctualityStatus: null, averageDelay: null };
+    }
+
+    const totalDelay = paidCuotas.reduce((sum: number, cuota: any) => {
+      if (!cuota.fecha_pago) return sum;
+      
+      const pDateStr = cuota.fecha_pago.substring(0, 10);
+      const vDateStr = cuota.fecha_vencimiento.substring(0, 10);
+      
+      const p = new Date(pDateStr + 'T00:00:00');
+      const v = new Date(vDateStr + 'T00:00:00');
+      
+      const diffTime = p.getTime() - v.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return sum + Math.max(0, diffDays);
+    }, 0);
+
+    const avg = totalDelay / paidCuotas.length;
+    let status: 'green' | 'yellow' | 'red' = 'green';
+    if (avg <= 3) {
+      status = 'green';
+    } else if (avg <= 7) {
+      status = 'yellow';
+    } else {
+      status = 'red';
+    }
+
+    return { punctualityStatus: status, averageDelay: avg };
+  })();
+
   const goodPayer = client.status === 'al_dia' || client.status === 'pagado';
+
+  // Clases dinámicas basadas en puntualidad
+  let decorBgClass = goodPayer ? 'bg-status-green' : 'bg-status-red';
+  let avatarClass = goodPayer ? 'bg-status-green/20 text-status-green' : 'bg-status-red/20 text-status-red';
+
+  if (punctualityStatus === 'green') {
+    decorBgClass = 'bg-status-green';
+    avatarClass = 'bg-status-green/20 text-status-green';
+  } else if (punctualityStatus === 'yellow') {
+    decorBgClass = 'bg-status-yellow';
+    avatarClass = 'bg-status-yellow/20 text-status-yellow';
+  } else if (punctualityStatus === 'red') {
+    decorBgClass = 'bg-status-red';
+    avatarClass = 'bg-status-red/20 text-status-red';
+  }
 
   const handleEditClick = () => {
     setEditForm({
@@ -592,12 +842,12 @@ export default function ClientDetail() {
       {/* Header Ficha Cliente */}
       <div className="bg-card rounded-xl border border-border p-5 lg:p-6 relative overflow-hidden">
         {/* Decorative background element based on status */}
-        <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-10 ${goodPayer ? 'bg-status-green' : 'bg-status-red'}`} />
+        <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-10 ${decorBgClass}`} />
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
           <div className="flex items-center gap-4">
             {/* Avatar */}
-            <div className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shadow-sm ${goodPayer ? 'bg-status-green/20 text-status-green' : 'bg-status-red/20 text-status-red'}`}>
+            <div className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shadow-sm ${avatarClass}`}>
               {(client.nombre_completo || client.name || '?').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
             </div>
             
@@ -685,9 +935,16 @@ export default function ClientDetail() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold">Historial de Préstamos</h3>
-            <p className={`text-xs mt-1 py-0.5 ${goodPayer ? 'status-green' : 'status-yellow'}`}>
-              {goodPayer ? '⭐ Buen comportamiento de pago' : '⚠️ Posee deudas y/o irregularidades'}
-            </p>
+            {punctualityStatus && (
+              <p className={`text-xs mt-1 py-0.5 ${
+                punctualityStatus === 'green' ? 'status-green' : 
+                punctualityStatus === 'yellow' ? 'status-yellow' : 'status-red'
+              }`}>
+                {punctualityStatus === 'green' && `⭐ Buen pagador (Atraso prom: ${averageDelay.toFixed(1)} días)`}
+                {punctualityStatus === 'yellow' && `⚠️ Pagador irregular (Atraso prom: ${averageDelay.toFixed(1)} días)`}
+                {punctualityStatus === 'red' && `🚨 Mal pagador (Atraso prom: ${averageDelay.toFixed(1)} días)`}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <div className="flex bg-secondary rounded-lg p-0.5 border border-border text-xs">
