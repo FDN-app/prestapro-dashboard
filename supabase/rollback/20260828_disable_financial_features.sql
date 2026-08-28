@@ -5,6 +5,7 @@ REVOKE EXECUTE ON FUNCTION renovar_prestamo_con_descuento(
   UUID, NUMERIC, UUID, NUMERIC, NUMERIC, NUMERIC, TEXT, INT, TEXT, INT,
   DATE, DATE, INT, JSONB, NUMERIC
 ) FROM authenticated;
+DROP TRIGGER IF EXISTS trg_recalcular_saldo_con_mora_deferred ON cuotas;
 
 COMMENT ON FUNCTION agregar_mora_manual(UUID, UUID, TEXT, NUMERIC)
   IS 'DESHABILITADA mediante rollback seguro';
