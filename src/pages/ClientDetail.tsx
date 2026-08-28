@@ -351,6 +351,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                 return sortedCuotas.map((cuota, index) => {
                   const actual_cuota = Number(cuota.monto_cuota);
                   const cobrado = Number(cuota.monto_cobrado) || 0;
+                  const moraCuota = Number(cuota.monto_mora ?? 0);
                   const restante = Math.max(0, actual_cuota - cobrado);
                   
                   const arrastre_visual = arrastre_acumulado;
@@ -371,7 +372,13 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                           {cuota.numero_cuota}
                         </div>
                         <div>
-                          {arrastre_visual > 0 && requirePayment ? (
+                          {moraCuota > 0 && requirePayment ? (
+                            <div className="mb-1">
+                              <p className="text-xs text-muted-foreground">Cuota original: {formatCurrency(actual_cuota)}</p>
+                              <span className="inline-flex text-[10px] bg-status-red/10 text-status-red border border-status-red/20 px-1.5 py-0.5 rounded font-bold">Mora: +{formatCurrency(moraCuota)}</span>
+                              <p className="text-sm font-bold text-foreground mt-0.5">Total: {formatCurrency(actual_cuota + arrastre_visual + moraCuota)}</p>
+                            </div>
+                          ) : arrastre_visual > 0 && requirePayment ? (
                              <div className="mb-1">
                                <p className="text-xs text-muted-foreground line-through decoration-muted-foreground/50">Orig: {formatCurrency(actual_cuota)}</p>
                                <div className="flex items-center gap-1">
