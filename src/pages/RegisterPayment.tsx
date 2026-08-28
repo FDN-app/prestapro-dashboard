@@ -34,7 +34,7 @@ export default function RegisterPayment() {
 
   const { cuotas, isLoading: loadingCuotas } = useCuotas(loanId);
 
-  const clientLoans = useMemo(() => prestamos.filter(l => l.cliente_id === clientId && l.estado !== 'pagado' && l.estado !== 'liquidado'), [prestamos, clientId]);
+  const clientLoans = useMemo(() => prestamos.filter(l => l.cliente_id === clientId && !['pagado', 'liquidado', 'refinanciado'].includes(l.estado)), [prestamos, clientId]);
   
   const pendingInstallments = useMemo(() => cuotas.filter(i => i.estado === 'pendiente' || i.estado === 'parcial' || i.estado === 'vencida').sort((a, b) => a.numero_cuota - b.numero_cuota), [cuotas]);
   

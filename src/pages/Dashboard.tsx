@@ -44,7 +44,7 @@ export default function Dashboard() {
     let capitalEnCalle = 0;
     let moraTotal = 0;
     
-    prestamos.filter(p => !['pagado', 'liquidado'].includes(p.estado)).forEach(p => {
+    prestamos.filter(p => !['pagado', 'liquidado', 'refinanciado'].includes(p.estado)).forEach(p => {
       capitalEnCalle += p.saldo_pendiente;
       if (p.estado === 'mora') {
         const cuotasMora = (p as any).cuotas?.filter((c: any) => c.estado === 'mora' || c.estado === 'vencida') || [];
@@ -226,7 +226,7 @@ function PrestamosTable() {
 
   if (isLoading) return <div className="text-muted-foreground p-4">Cargando préstamos...</div>;
 
-  const activos = prestamos.filter(p => p.estado !== 'pagado' && p.estado !== 'liquidado');
+  const activos = prestamos.filter(p => !['pagado', 'liquidado', 'refinanciado'].includes(p.estado));
 
   const formatFreq = (p: any) => {
     if (p.frecuencia_pago === 'semanal') return `${p.cantidad_cuotas}s`;

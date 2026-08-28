@@ -36,7 +36,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string }) {
+function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any; clientName: string; replacementLoanId?: string }) {
   const navigate = useNavigate();
   const { role } = useAuth();
   const { registrarPago, isRegistrando } = usePagos();
@@ -209,8 +209,19 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
     }
   };
   
-  const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado';
+  const isRefinanciado = loan.estado === 'refinanciado';
+  const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado' || isRefinanciado;
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
+  const estadoLabel = isRefinanciado
+    ? 'Finalizado por renovación'
+    : loan.estado.charAt(0).toUpperCase() + loan.estado.slice(1);
+  const estadoClasses = isRefinanciado
+    ? 'bg-violet-500/15 text-violet-300 border border-violet-500/25'
+    : isPagado
+      ? 'bg-status-green/10 text-status-green'
+      : loan.estado === 'mora'
+        ? 'bg-status-red/10 text-status-red'
+        : 'bg-primary/10 text-primary';
 
   const totalCuotas = cuotas?.reduce((acc: number, c: any) => acc + Number(c.monto_cuota), 0) || 0;
   const moraTotal = cuotas?.reduce((sum: number, c: any) => sum + Number(c.monto_mora ?? 0), 0) || 0;
@@ -243,7 +254,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   };
 
   return (
-    <div className={`bg-card rounded-lg border border-border overflow-hidden transition-all duration-300 ${loan.archivado ? 'opacity-70 border-dashed bg-card/60' : ''}`}>
+    <div className={`bg-card rounded-lg border overflow-hidden transition-all duration-300 ${isRefinanciado ? 'border-violet-500/30 bg-violet-500/[0.03]' : 'border-border'} ${loan.archivado ? 'opacity-70 border-dashed bg-card/60' : ''}`}>
       <div
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-4 text-left hover:bg-secondary/50 transition-colors flex flex-col gap-4 cursor-pointer"
@@ -256,8 +267,8 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                 Archivado
               </span>
             )}
-            <span className={`text-xs px-2 py-0.5 rounded-full ${isPagado ? 'bg-status-green/10 text-status-green' : (loan.estado === 'mora' ? 'bg-status-red/10 text-status-red' : 'bg-primary/10 text-primary')}`}>
-              {loan.estado.charAt(0).toUpperCase() + loan.estado.slice(1)}
+            <span className={`text-xs px-2 py-0.5 rounded-full ${estadoClasses}`}>
+              {estadoLabel}
             </span>
             
             {((isPagado && !loan.archivado) || loan.archivado) && (
@@ -324,6 +335,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
           </div>
           {moraTotal > 0 && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Mora pendiente</span><span className="font-medium text-status-red">{formatCurrency(moraTotal)}</span></div>}
           {loan.renovado_desde_id && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Renovación</span><span className="font-medium">Desde #{loan.renovado_desde_id.substring(0, 8)} · Pagó {formatCurrency(loan.pago_cliente_renovacion || 0)} · Descontado {formatCurrency(loan.monto_cancelado_renovacion || 0)} · Entregado {formatCurrency(loan.efectivo_entregado || 0)}</span></div>}
+          {isRefinanciado && replacementLoanId && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Continuidad</span><span className="font-medium text-violet-300">Reemplazado por préstamo #{replacementLoanId.substring(0, 8)}</span></div>}
         </div>
 
         <div className="w-full mt-2">
@@ -748,7 +760,7 @@ export default function ClientDetail() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
-  const [showArchivedLoans, setShowArchivedLoans] = useState(false);
+  const [loanView, setLoanView] = useState<'active' | 'finished'>('active');
   const [editForm, setEditForm] = useState({
     nombre_completo: '',
     dni: '',
@@ -763,9 +775,17 @@ export default function ClientDetail() {
   }
 
   const client = clientes.find(c => c.id === id);
-  const clientLoans = prestamos
-    .filter(l => l.cliente_id === id)
-    .filter(l => showArchivedLoans || !l.archivado);
+  const finishedStates = ['pagado', 'liquidado', 'refinanciado'];
+  const clientLoans = allClientLoans.filter(loan =>
+    loanView === 'active'
+      ? !loan.archivado && !finishedStates.includes(loan.estado)
+      : loan.archivado || finishedStates.includes(loan.estado)
+  );
+  const replacementByPreviousId = new Map(
+    allClientLoans
+      .filter(loan => loan.renovado_desde_id)
+      .map(loan => [loan.renovado_desde_id as string, loan.id])
+  );
 
   if (!client) return <div className="p-6">Cliente no encontrado.</div>;
 
@@ -987,16 +1007,16 @@ export default function ClientDetail() {
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <div className="flex bg-secondary rounded-lg p-0.5 border border-border text-xs">
               <button 
-                onClick={() => setShowArchivedLoans(false)}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${!showArchivedLoans ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setLoanView('active')}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${loanView === 'active' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 Activos
               </button>
               <button 
-                onClick={() => setShowArchivedLoans(true)}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${showArchivedLoans ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setLoanView('finished')}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${loanView === 'finished' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                Ver archivados
+                Finalizados
               </button>
             </div>
             <Button size="sm" onClick={() => navigate(`/nuevo-prestamo?clientId=${id}`)}>
@@ -1007,11 +1027,11 @@ export default function ClientDetail() {
 
         <div className="space-y-3">
           {clientLoans.map(loan => (
-            <LoanAccordionItem key={loan.id} loan={loan} clientName={client.nombre_completo} />
+            <LoanAccordionItem key={loan.id} loan={loan} clientName={client.nombre_completo} replacementLoanId={replacementByPreviousId.get(loan.id)} />
           ))}
           {clientLoans.length === 0 && (
             <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-lg bg-card/30">
-              No hay préstamos registrados para este cliente.
+              {loanView === 'active' ? 'No hay préstamos activos para este cliente.' : 'No hay préstamos finalizados para este cliente.'}
             </div>
           )}
         </div>

@@ -50,7 +50,7 @@ export function useClientes() {
       // Map to add computed fields
       return (data || []).map((c: any): ClienteConSaldos => {
         const prestamos: any[] = c.prestamos || [];
-        const activeLoansCount = prestamos.filter(p => !['pagado', 'liquidado'].includes(p.estado)).length;
+        const activeLoansCount = prestamos.filter(p => !['pagado', 'liquidado', 'refinanciado'].includes(p.estado)).length;
         const totalPending = prestamos.reduce((sum, p) => sum + Number(p.saldo_pendiente), 0);
         
         let generalStatus: 'al_dia' | 'atraso' | 'pagado' = 'pagado';

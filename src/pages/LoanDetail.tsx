@@ -70,7 +70,7 @@ export default function LoanDetail() {
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold tracking-tight">Préstamo #{loan.id.slice(0,8)}</h2>
               <Badge variant={loan.estado === 'activo' ? 'default' : 'secondary'} className="capitalize">
-                {loan.estado}
+                {loan.estado === 'refinanciado' ? 'Finalizado por renovación' : loan.estado}
               </Badge>
             </div>
             <p className="text-muted-foreground mt-1">Cliente: <span className="font-semibold text-foreground">{loan.clientes?.nombre_completo}</span></p>
