@@ -11,6 +11,7 @@ export interface Cuota {
   fecha_vencimiento: string;
   estado: 'pendiente' | 'parcial' | 'pagada' | 'vencida';
   fecha_pago: string | null;
+  monto_mora?: number;
 }
 
 export function useCuotas(prestamoId: string | null) {

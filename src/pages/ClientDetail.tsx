@@ -65,9 +65,13 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   const [payDateValue, setPayDateValue] = useState<string>(''); // YYYY-MM-DD
   const [payDateMethod, setPayDateMethod] = useState('efectivo');
   const [payDateNotes, setPayDateNotes] = useState('');
+  const [showMoraModal, setShowMoraModal] = useState(false);
+  const [selectedCuotaMora, setSelectedCuotaMora] = useState<any>(null);
+  const [moraTipo, setMoraTipo] = useState<'porcentaje' | 'monto'>('porcentaje');
+  const [moraValor, setMoraValor] = useState('10');
 
   const { cuotas, isLoading } = useCuotas(loan.id); 
-  const { extenderPrestamo, isExtendiendo, updatePrestamo } = usePrestamos();
+  const { extenderPrestamo, isExtendiendo, updatePrestamo, agregarMora, isAgregandoMora } = usePrestamos();
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -208,11 +212,16 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
   const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado';
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
 
-  const totalADevolver = cuotas?.reduce((acc: number, c: any) => acc + Number(c.monto_cuota), 0) || 0;
-  const interesTotal = Math.max(0, totalADevolver - Number(loan.monto_original));
+  const totalCuotas = cuotas?.reduce((acc: number, c: any) => acc + Number(c.monto_cuota), 0) || 0;
+  const moraTotal = cuotas?.reduce((sum: number, c: any) => sum + Number(c.monto_mora ?? 0), 0) || 0;
+  const totalADevolver = totalCuotas + moraTotal;
+  const interesTotal = Math.max(0, totalCuotas - Number(loan.monto_original));
   const valorCuota = cuotas && cuotas.length > 0 ? Number(cuotas[0].monto_cuota) : 0;
   const cuotasPagadas = cuotas?.filter((c: any) => c.estado === 'pagada').length || 0;
   const cantidadReal = loan.cantidad_cuotas || cuotas?.length || 0;
+  const fechaFinalizacion = cuotas?.length
+    ? [...cuotas].sort((a, b) => b.numero_cuota - a.numero_cuota)[0].fecha_vencimiento
+    : null;
 
   const getCuotaStatusStyles = (estado: string, fecha_vencimiento: string) => {
     if (estado === 'pagada') return { label: 'Pagada', classes: 'bg-status-green/10 text-status-green border-status-green/20' };
@@ -309,6 +318,12 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
             <span className="text-xs text-muted-foreground">Fecha de Inicio</span>
             <span className="font-medium">{formatDateDisplay(loan.fecha_inicio)}</span>
           </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Fecha de Finalización</span>
+            <span className="font-medium">{isLoading ? '...' : (fechaFinalizacion ? formatDateDisplay(fechaFinalizacion) : '—')}</span>
+          </div>
+          {moraTotal > 0 && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Mora pendiente</span><span className="font-medium text-status-red">{formatCurrency(moraTotal)}</span></div>}
+          {loan.renovado_desde_id && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Renovación</span><span className="font-medium">Desde #{loan.renovado_desde_id.substring(0, 8)} · Entregado {formatCurrency(loan.efectivo_entregado || 0)}</span></div>}
         </div>
 
         <div className="w-full mt-2">
@@ -388,7 +403,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                             <Button 
                               size="sm"
                               className="h-7 text-xs bg-[#10B981] hover:bg-[#10B981]/90 text-white font-semibold transition-colors w-full sm:w-auto"
-                              onClick={() => handlePagarTodoClick(cuota, restante)}
+                              onClick={() => handlePagarTodoClick(cuota, restante + Number(cuota.monto_mora ?? 0))}
                             >
                               ✅ Pagó todo
                             </Button>
@@ -407,6 +422,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
                               <CalendarIcon size={13} />
                               <span>Pago con fecha</span>
                             </Button>
+                            {role === 'admin' && <Button size="sm" variant="outline" className="h-7 text-xs border-status-red/40 text-status-red" onClick={() => { setSelectedCuotaMora(cuota); setMoraTipo('porcentaje'); setMoraValor('10'); setShowMoraModal(true); }}>Agregar mora</Button>}
                           </div>
                         )}
                       </div>
@@ -435,6 +451,19 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
       )}
 
       {/* Modal Extend Loan */}
+      <Dialog open={showMoraModal} onOpenChange={setShowMoraModal}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader><DialogTitle>Agregar monto por mora</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-3">
+            <p className="text-sm text-muted-foreground">Cuota #{selectedCuotaMora?.numero_cuota}. Si elegís porcentaje, se calcula sobre el capital prestado de {formatCurrency(loan.monto_original)}.</p>
+            <div className="grid grid-cols-2 gap-2"><Button type="button" variant={moraTipo === 'porcentaje' ? 'default' : 'outline'} onClick={() => setMoraTipo('porcentaje')}>Porcentaje</Button><Button type="button" variant={moraTipo === 'monto' ? 'default' : 'outline'} onClick={() => setMoraTipo('monto')}>Monto manual</Button></div>
+            <div className="space-y-2"><Label>{moraTipo === 'porcentaje' ? 'Porcentaje (%)' : 'Monto ($)'}</Label><Input type="number" min="0.01" step="0.01" value={moraValor} onChange={e => setMoraValor(e.target.value)} /></div>
+            {Number(moraValor) > 0 && <p className="text-sm font-medium">Se agregarán {formatCurrency(moraTipo === 'porcentaje' ? Number(loan.monto_original) * Number(moraValor) / 100 : Number(moraValor))} al saldo.</p>}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setShowMoraModal(false)}>Cancelar</Button><Button disabled={isAgregandoMora || Number(moraValor) <= 0} onClick={async () => { await agregarMora({ prestamo_id: loan.id, cuota_id: selectedCuotaMora.id, tipo: moraTipo, valor: Number(moraValor) }); setShowMoraModal(false); }}>Confirmar mora</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isExtendModalOpen} onOpenChange={setIsExtendModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

@@ -60,6 +60,8 @@ export default function NewLoan() {
   const [promissory, setPromissory] = useState(savedDraft?.promissory !== undefined ? savedDraft.promissory : false);
   const [notes, setNotes] = useState(savedDraft?.notes || '');
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(savedDraft?.firstInstallmentDate || '');
+  const [isRenewal, setIsRenewal] = useState(false);
+  const [previousLoanId, setPreviousLoanId] = useState('');
 
   useEffect(() => {
     const draft = {
@@ -180,8 +182,12 @@ export default function NewLoan() {
     });
   }, [installments, frequency, perInstallment, firstInstallmentDate]);
 
-  const { createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando } = usePrestamos();
+  const { prestamos, createPrestamo, isCreating, refinanciarPrestamo, isRefinanciando, renovarPrestamo, isRenovando } = usePrestamos();
   const oldLoanId = params.get('refinanciar');
+  const renewalLoans = prestamos.filter(p => p.cliente_id === clientId && !['pagado', 'liquidado', 'refinanciado'].includes(p.estado));
+  const previousLoan = renewalLoans.find(p => p.id === previousLoanId);
+  const cancellationAmount = Number(previousLoan?.saldo_pendiente || 0);
+  const cashDelivered = Math.max(0, Number(amount || 0) - cancellationAmount);
 
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
@@ -240,7 +246,7 @@ export default function NewLoan() {
       p_frecuencia_dias: freqDays,
       p_fecha_inicio: fechaInicioPayload,
       p_fecha_primera_cuota: fechaPrimCuotaPayload,
-      p_cantidad_renovaciones: oldLoanId ? 1 : 0, 
+      p_cantidad_renovaciones: isRenewal ? Number(previousLoan?.cantidad_renovaciones || 0) + 1 : (oldLoanId ? 1 : 0),
       p_renovados: renovados ? Number(renovados) : null,
       p_cuotas: schedule.map(s => {
         return {
@@ -252,7 +258,11 @@ export default function NewLoan() {
     };
 
     try {
-      if (oldLoanId) {
+      if (isRenewal) {
+        if (!previousLoanId) throw new Error('Seleccioná el préstamo anterior');
+        if (Number(amount) < cancellationAmount) throw new Error('El nuevo préstamo no alcanza para cancelar la deuda anterior');
+        await renovarPrestamo({ ...payload, p_viejo_prestamo_id: previousLoanId, p_monto_cancelado: cancellationAmount });
+      } else if (oldLoanId) {
         payload.p_viejo_prestamo_id = oldLoanId;
         await refinanciarPrestamo(payload);
       } else {
@@ -265,7 +275,7 @@ export default function NewLoan() {
     }
   };
 
-  const isWorking = isCreating || isRefinanciando;
+  const isWorking = isCreating || isRefinanciando || isRenovando;
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -295,6 +305,10 @@ export default function NewLoan() {
                 {errors.clientId}
               </p>
             )}
+          </div>
+          <div className="rounded-lg border border-border p-3 space-y-3">
+            <div className="flex items-center justify-between"><div><Label>Renovación de préstamo</Label><p className="text-xs text-muted-foreground">Cancela la deuda anterior descontándola del nuevo préstamo.</p></div><Switch checked={isRenewal} onCheckedChange={value => { setIsRenewal(value); if (!value) setPreviousLoanId(''); }} /></div>
+            {isRenewal && <><select value={previousLoanId} onChange={e => setPreviousLoanId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm"><option value="">Seleccionar préstamo anterior</option>{renewalLoans.map(p => <option key={p.id} value={p.id}>#{p.id.substring(0,8)} · deuda {formatCurrency(p.saldo_pendiente)}</option>)}</select>{previousLoan && <div className="grid grid-cols-2 gap-2 text-sm"><div><span className="text-muted-foreground">Deuda cancelada</span><p className="font-semibold">{formatCurrency(cancellationAmount)}</p></div><div><span className="text-muted-foreground">Efectivo entregado</span><p className="font-semibold text-primary">{formatCurrency(cashDelivered)}</p></div></div>}</>}
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-2">
@@ -483,6 +497,7 @@ export default function NewLoan() {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><span className="text-muted-foreground">Monto por cuota:</span><p className="font-bold text-lg">{formatCurrency(perInstallment)}</p></div>
             <div><span className="text-muted-foreground">Total a pagar:</span><p className="font-bold text-lg">{formatCurrency(totalToPay)}</p></div>
+            {isRenewal && <div className="col-span-2 rounded border border-border p-3"><span className="text-muted-foreground">Renovación:</span><p>Se cancelan {formatCurrency(cancellationAmount)} y se entregan {formatCurrency(cashDelivered)} en efectivo.</p></div>}
           </div>
           <div className="overflow-y-auto max-h-80">
             <table className="w-full text-sm">

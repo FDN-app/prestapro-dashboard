@@ -23,21 +23,22 @@ async function buildCarteraContext(): Promise<string> {
 
   const [{ data: prestamos }, { data: cuotasVencidas }, { data: cuotasSemana }, { data: topDeudores }] =
     await Promise.all([
-      supabase.from('prestamos').select('saldo_pendiente').eq('estado', 'activo'),
+      supabase.from('prestamos').select('saldo_pendiente, renovado_desde_id, monto_cancelado_renovacion').in('estado', ['activo', 'mora']),
       supabase
         .from('cuotas')
-        .select('monto_cuota, monto_cobrado, prestamos(clientes(nombre_completo))')
-        .eq('estado', 'vencida'),
+        .select('monto_cuota, monto_cobrado, monto_mora, prestamos(clientes(nombre_completo))')
+        .in('estado', ['pendiente', 'parcial', 'vencida'])
+        .lt('fecha_vencimiento', todayStr),
       supabase
         .from('cuotas')
-        .select('monto_cuota')
-        .eq('estado', 'pendiente')
+        .select('monto_cuota, monto_mora')
+        .in('estado', ['pendiente', 'parcial'])
         .gte('fecha_vencimiento', todayStr)
         .lte('fecha_vencimiento', weekLaterStr),
       supabase
         .from('prestamos')
         .select('saldo_pendiente, clientes(nombre_completo)')
-        .eq('estado', 'activo')
+        .in('estado', ['activo', 'mora'])
         .order('saldo_pendiente', { ascending: false })
         .limit(5),
     ]);
@@ -46,9 +47,11 @@ async function buildCarteraContext(): Promise<string> {
   const totalSaldo = prestamos?.reduce((s, p) => s + (p.saldo_pendiente ?? 0), 0) ?? 0;
   const totalVencidas = cuotasVencidas?.length ?? 0;
   const montoVencido =
-    cuotasVencidas?.reduce((s, c) => s + ((c.monto_cuota ?? 0) - (c.monto_cobrado ?? 0)), 0) ?? 0;
+    cuotasVencidas?.reduce((s, c) => s + ((c.monto_cuota ?? 0) - (c.monto_cobrado ?? 0) + (c.monto_mora ?? 0)), 0) ?? 0;
   const totalSemana = cuotasSemana?.length ?? 0;
-  const montoSemana = cuotasSemana?.reduce((s, c) => s + (c.monto_cuota ?? 0), 0) ?? 0;
+  const montoSemana = cuotasSemana?.reduce((s, c) => s + (c.monto_cuota ?? 0) + (c.monto_mora ?? 0), 0) ?? 0;
+  const renovaciones = prestamos?.filter(p => p.renovado_desde_id).length ?? 0;
+  const moraPendiente = cuotasVencidas?.reduce((s, c) => s + (c.monto_mora ?? 0), 0) ?? 0;
 
   const topText =
     (topDeudores as any[])
@@ -62,6 +65,8 @@ async function buildCarteraContext(): Promise<string> {
 - Préstamos activos: ${totalPrestamos}
 - Saldo total pendiente: $${totalSaldo.toLocaleString('es-AR')}
 - Cuotas vencidas sin pagar: ${totalVencidas} (monto acumulado: $${montoVencido.toLocaleString('es-AR')})
+- Mora manual pendiente dentro de cuotas vencidas: $${moraPendiente.toLocaleString('es-AR')}
+- Préstamos activos originados por renovación: ${renovaciones}
 - Cuotas a cobrar próximos 7 días: ${totalSemana} (monto esperado: $${montoSemana.toLocaleString('es-AR')})
 - Top 5 mayores deudores por saldo pendiente:
 ${topText}`;

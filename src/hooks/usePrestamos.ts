@@ -26,6 +26,9 @@ export interface Prestamo {
     fecha_pago: string;
     es_cobro_directo_admin: boolean;
   }[];
+  renovado_desde_id?: string | null;
+  monto_cancelado_renovacion?: number | null;
+  efectivo_entregado?: number | null;
 }
 
 export function usePrestamos() {
@@ -130,6 +133,18 @@ export function usePrestamos() {
       toast.error('Error al refinanciar el préstamo: ' + error.message);
     }
   });
+  const renovarMutation = useMutation({
+    mutationFn: async (params: any) => {
+      const { data, error } = await supabase.rpc('renovar_prestamo_con_descuento', params);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Renovación registrada correctamente');
+      ['prestamos', 'clientes', 'capital', 'auditoria'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+    },
+    onError: error => toast.error('Error al renovar: ' + error.message),
+  });
 
   const extenderMutation = useMutation({
     mutationFn: async ({ prestamo_id, nueva_tasa, nuevas_cuotas, frecuencia_pago, frecuencia_dias }: any) => {
@@ -172,6 +187,26 @@ export function usePrestamos() {
     }
   });
 
+  const moraMutation = useMutation({
+    mutationFn: async (params: { prestamo_id: string; cuota_id: string; tipo: 'porcentaje' | 'monto'; valor: number }) => {
+      const { data, error } = await supabase.rpc('agregar_mora_manual', {
+        p_prestamo_id: params.prestamo_id,
+        p_cuota_id: params.cuota_id,
+        p_tipo: params.tipo,
+        p_valor: params.valor,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Mora agregada correctamente');
+      queryClient.invalidateQueries({ queryKey: ['prestamos'] });
+      queryClient.invalidateQueries({ queryKey: ['cuotas'] });
+      queryClient.invalidateQueries({ queryKey: ['auditoria'] });
+    },
+    onError: (error) => toast.error('Error al agregar mora: ' + error.message),
+  });
+
   return {
     ...query,
     prestamos: query.data || [],
@@ -183,9 +218,13 @@ export function usePrestamos() {
     isLiquidando: liquidarMutation.isPending,
     refinanciarPrestamo: refinanciarMutation.mutateAsync,
     isRefinanciando: refinanciarMutation.isPending,
+    renovarPrestamo: renovarMutation.mutateAsync,
+    isRenovando: renovarMutation.isPending,
     extenderPrestamo: extenderMutation.mutateAsync,
     isExtendiendo: extenderMutation.isPending,
     diferirCuota: diferirCuotaMutation.mutateAsync,
     isDiriendo: diferirCuotaMutation.isPending,
+    agregarMora: moraMutation.mutateAsync,
+    isAgregandoMora: moraMutation.isPending,
   };
 }
