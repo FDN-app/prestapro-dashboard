@@ -29,6 +29,7 @@ export interface Prestamo {
   renovado_desde_id?: string | null;
   monto_cancelado_renovacion?: number | null;
   efectivo_entregado?: number | null;
+  pago_cliente_renovacion?: number | null;
 }
 
 export function usePrestamos() {

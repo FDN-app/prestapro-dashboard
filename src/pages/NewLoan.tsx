@@ -62,6 +62,7 @@ export default function NewLoan() {
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(savedDraft?.firstInstallmentDate || '');
   const [isRenewal, setIsRenewal] = useState(false);
   const [previousLoanId, setPreviousLoanId] = useState('');
+  const [renewalPayment, setRenewalPayment] = useState('0');
 
   useEffect(() => {
     const draft = {
@@ -186,7 +187,9 @@ export default function NewLoan() {
   const oldLoanId = params.get('refinanciar');
   const renewalLoans = prestamos.filter(p => p.cliente_id === clientId && !['pagado', 'liquidado', 'refinanciado'].includes(p.estado));
   const previousLoan = renewalLoans.find(p => p.id === previousLoanId);
-  const cancellationAmount = Number(previousLoan?.saldo_pendiente || 0);
+  const previousDebt = Number(previousLoan?.saldo_pendiente || 0);
+  const renewalPaymentAmount = Math.min(Math.max(0, Number(renewalPayment || 0)), previousDebt);
+  const cancellationAmount = Math.max(0, previousDebt - renewalPaymentAmount);
   const cashDelivered = Math.max(0, Number(amount || 0) - cancellationAmount);
 
   const handleSubmit = async () => {
@@ -260,8 +263,9 @@ export default function NewLoan() {
     try {
       if (isRenewal) {
         if (!previousLoanId) throw new Error('Seleccioná el préstamo anterior');
+        if (Number(renewalPayment || 0) < 0 || Number(renewalPayment || 0) > previousDebt) throw new Error('El pago del cliente no puede superar la deuda anterior');
         if (Number(amount) < cancellationAmount) throw new Error('El nuevo préstamo no alcanza para cancelar la deuda anterior');
-        await renovarPrestamo({ ...payload, p_viejo_prestamo_id: previousLoanId, p_monto_cancelado: cancellationAmount });
+        await renovarPrestamo({ ...payload, p_viejo_prestamo_id: previousLoanId, p_monto_cancelado: cancellationAmount, p_pago_cliente: renewalPaymentAmount });
       } else if (oldLoanId) {
         payload.p_viejo_prestamo_id = oldLoanId;
         await refinanciarPrestamo(payload);
@@ -307,8 +311,8 @@ export default function NewLoan() {
             )}
           </div>
           <div className="rounded-lg border border-border p-3 space-y-3">
-            <div className="flex items-center justify-between"><div><Label>Renovación de préstamo</Label><p className="text-xs text-muted-foreground">Cancela la deuda anterior descontándola del nuevo préstamo.</p></div><Switch checked={isRenewal} onCheckedChange={value => { setIsRenewal(value); if (!value) setPreviousLoanId(''); }} /></div>
-            {isRenewal && <><select value={previousLoanId} onChange={e => setPreviousLoanId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm"><option value="">Seleccionar préstamo anterior</option>{renewalLoans.map(p => <option key={p.id} value={p.id}>#{p.id.substring(0,8)} · deuda {formatCurrency(p.saldo_pendiente)}</option>)}</select>{previousLoan && <div className="grid grid-cols-2 gap-2 text-sm"><div><span className="text-muted-foreground">Deuda cancelada</span><p className="font-semibold">{formatCurrency(cancellationAmount)}</p></div><div><span className="text-muted-foreground">Efectivo entregado</span><p className="font-semibold text-primary">{formatCurrency(cashDelivered)}</p></div></div>}</>}
+            <div className="flex items-center justify-between"><div><Label>Renovación de préstamo</Label><p className="text-xs text-muted-foreground">Registra lo que paga el cliente y descuenta el resto del nuevo préstamo.</p></div><Switch checked={isRenewal} onCheckedChange={value => { setIsRenewal(value); if (!value) { setPreviousLoanId(''); setRenewalPayment('0'); } }} /></div>
+            {isRenewal && <><select value={previousLoanId} onChange={e => { setPreviousLoanId(e.target.value); setRenewalPayment('0'); }} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm"><option value="">Seleccionar préstamo anterior</option>{renewalLoans.map(p => <option key={p.id} value={p.id}>#{p.id.substring(0,8)} · deuda {formatCurrency(p.saldo_pendiente)}</option>)}</select>{previousLoan && <><div className="space-y-2"><Label>Pago del cliente al renovar ($) · opcional</Label><Input type="number" min="0" max={previousDebt} value={renewalPayment} onChange={e => setRenewalPayment(e.target.value)} /><p className="text-xs text-muted-foreground">Dejalo en 0 si no entrega dinero. Máximo: {formatCurrency(previousDebt)}.</p></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm"><div><span className="text-muted-foreground">Deuda anterior</span><p className="font-semibold">{formatCurrency(previousDebt)}</p></div><div><span className="text-muted-foreground">Paga ahora</span><p className="font-semibold">{formatCurrency(renewalPaymentAmount)}</p></div><div><span className="text-muted-foreground">Se descuenta</span><p className="font-semibold">{formatCurrency(cancellationAmount)}</p></div><div><span className="text-muted-foreground">Efectivo entregado</span><p className="font-semibold text-primary">{formatCurrency(cashDelivered)}</p></div></div></>}</>}
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-2">
@@ -497,7 +501,7 @@ export default function NewLoan() {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><span className="text-muted-foreground">Monto por cuota:</span><p className="font-bold text-lg">{formatCurrency(perInstallment)}</p></div>
             <div><span className="text-muted-foreground">Total a pagar:</span><p className="font-bold text-lg">{formatCurrency(totalToPay)}</p></div>
-            {isRenewal && <div className="col-span-2 rounded border border-border p-3"><span className="text-muted-foreground">Renovación:</span><p>Se cancelan {formatCurrency(cancellationAmount)} y se entregan {formatCurrency(cashDelivered)} en efectivo.</p></div>}
+            {isRenewal && <div className="col-span-2 rounded border border-border p-3"><span className="text-muted-foreground">Renovación:</span><p>El cliente paga {formatCurrency(renewalPaymentAmount)}, se descuentan {formatCurrency(cancellationAmount)} y recibe {formatCurrency(cashDelivered)}.</p></div>}
           </div>
           <div className="overflow-y-auto max-h-80">
             <table className="w-full text-sm">

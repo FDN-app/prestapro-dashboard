@@ -323,7 +323,7 @@ function LoanAccordionItem({ loan, clientName }: { loan: any; clientName: string
             <span className="font-medium">{isLoading ? '...' : (fechaFinalizacion ? formatDateDisplay(fechaFinalizacion) : '—')}</span>
           </div>
           {moraTotal > 0 && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Mora pendiente</span><span className="font-medium text-status-red">{formatCurrency(moraTotal)}</span></div>}
-          {loan.renovado_desde_id && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Renovación</span><span className="font-medium">Desde #{loan.renovado_desde_id.substring(0, 8)} · Entregado {formatCurrency(loan.efectivo_entregado || 0)}</span></div>}
+          {loan.renovado_desde_id && <div className="flex flex-col"><span className="text-xs text-muted-foreground">Renovación</span><span className="font-medium">Desde #{loan.renovado_desde_id.substring(0, 8)} · Pagó {formatCurrency(loan.pago_cliente_renovacion || 0)} · Descontado {formatCurrency(loan.monto_cancelado_renovacion || 0)} · Entregado {formatCurrency(loan.efectivo_entregado || 0)}</span></div>}
         </div>
 
         <div className="w-full mt-2">
