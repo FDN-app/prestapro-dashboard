@@ -105,7 +105,7 @@ Deno.serve(async () => {
       0,
     );
     const mensaje = [
-      `📋 Resumen diario — ${hoy}`,
+      `📋 Resumen diario — ${displayDate(hoy)}`,
       `⏰ Cuotas por vencer esta semana (hasta el ${displayDate(currentSunday)})`,
       porVencer.length ? porVencer.map((c: any) => line(c, "Vence")).join("\n") : "Ninguna",
       `📆 Próxima semana — del ${displayDate(nextMonday)} al ${displayDate(nextSunday)}`,
