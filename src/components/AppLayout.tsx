@@ -3,7 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import {
-  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity, CreditCard, Bot
+  BarChart3, Users, Banknote, ShieldCheck, ClipboardList, Settings, List, Menu, X, LogOut, DatabaseBackup, Activity, CreditCard, Bot, CalendarClock
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 const adminNav = [
   { label: 'Dashboard', icon: BarChart3, path: '/dashboard' },
   { label: 'Clientes', icon: Users, path: '/clientes' },
+  { label: 'Cuotas a vencer', icon: CalendarClock, path: '/cuotas-a-vencer' },
   { label: 'Registrar Pago', icon: Banknote, path: '/registrar-pago' },
   { label: 'Cobradores', icon: ShieldCheck, path: '/cobradores' },
   { label: 'Flujo de Capital', icon: Activity, path: '/capital' },
@@ -23,6 +24,7 @@ const adminNav = [
 
 const collectorNav = [
   { label: 'Cobros Pendientes', icon: List, path: '/cobros-pendientes' },
+  { label: 'Cuotas a vencer', icon: CalendarClock, path: '/cuotas-a-vencer' },
   { label: 'Registrar Pago', icon: Banknote, path: '/registrar-pago' },
   { label: 'Suscripción', icon: CreditCard, path: '/suscripcion' },
 ];

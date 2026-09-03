@@ -18,6 +18,7 @@ import CapitalFlow from "./pages/CapitalFlow";
 import SettingsPage from "./pages/Settings";
 import Backup from "./pages/Backup";
 import CollectorPending from "./pages/CollectorPending";
+import UpcomingInstallments from "./pages/UpcomingInstallments";
 import Subscriptions from "./pages/Subscriptions";
 import AsistenteIA from "./pages/AsistenteIA";
 import Register from "./pages/Register";
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/configuracion" element={<AppLayout><SettingsPage /></AppLayout>} />
             <Route path="/backups" element={<AppLayout><Backup /></AppLayout>} />
             <Route path="/cobros-pendientes" element={<AppLayout><CollectorPending /></AppLayout>} />
+            <Route path="/cuotas-a-vencer" element={<AppLayout><UpcomingInstallments /></AppLayout>} />
             <Route path="/suscripcion" element={<AppLayout><Subscriptions /></AppLayout>} />
             <Route path="/asistente" element={<AppLayout><AsistenteIA /></AppLayout>} />
             <Route path="*" element={<NotFound />} />

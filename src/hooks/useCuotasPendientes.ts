@@ -2,6 +2,23 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+export interface CuotaPendiente {
+  id: string;
+  numero_cuota: number;
+  monto_cuota: number;
+  monto_cobrado: number;
+  fecha_vencimiento: string;
+  estado: 'pendiente' | 'parcial' | 'vencida';
+  prestamos: {
+    id: string;
+    estado: string;
+    clientes: {
+      id: string;
+      nombre_completo: string;
+    } | null;
+  } | null;
+}
+
 export function useCuotasPendientes() {
   const query = useQuery({
     queryKey: ['cuotas_pendientes'],
@@ -26,7 +43,7 @@ export function useCuotasPendientes() {
         toast.error('Error al cargar cobros pendientes');
         throw error;
       }
-      return data;
+      return data as CuotaPendiente[];
     }
   });
 
