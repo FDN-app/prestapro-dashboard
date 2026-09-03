@@ -21,6 +21,21 @@ const addDays = (date: string, days: number) => {
   return localDate(value);
 };
 
+const weekRanges = (today: string) => {
+  const value = new Date(`${today}T12:00:00-03:00`);
+  const dayOfWeek = value.getUTCDay();
+  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+  const currentSunday = addDays(today, daysUntilSunday);
+  const nextMonday = addDays(currentSunday, 1);
+  const nextSunday = addDays(nextMonday, 6);
+  return { currentSunday, nextMonday, nextSunday };
+};
+
+const displayDate = (date: string) => {
+  const [year, month, day] = date.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 const splitMessage = (message: string) => {
   const chunks: string[] = [];
   let current = "";
@@ -45,7 +60,7 @@ Deno.serve(async () => {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: settings, error: settingsError } = await supabase
       .from("settings_empresa")
-      .select("telegram_chat_id, telegram_alertas_activas, telegram_dias_recordatorio")
+      .select("telegram_chat_id, telegram_alertas_activas")
       .limit(1).single();
     if (settingsError) throw settingsError;
     if (!settings?.telegram_alertas_activas || !settings.telegram_chat_id) {
@@ -53,7 +68,7 @@ Deno.serve(async () => {
     }
 
     const hoy = localDate();
-    const dias = Math.max(0, Number(settings.telegram_dias_recordatorio ?? 2));
+    const { currentSunday, nextMonday, nextSunday } = weekRanges(hoy);
     const { data: enviado, error: duplicateError } = await supabase
       .from("mensajes_telegram").select("id")
       .eq("tipo_mensaje", "resumen_diario")
@@ -63,27 +78,40 @@ Deno.serve(async () => {
 
     const fields = `numero_cuota, monto_cuota, monto_cobrado, fecha_vencimiento,
       prestamos!inner (clientes!inner (nombre_completo))`;
-    const [proximas, atrasadas] = await Promise.all([
+    const [estaSemana, proximaSemana, atrasadas] = await Promise.all([
       supabase.from("cuotas").select(fields).in("estado", ["pendiente", "parcial"])
-        .gte("fecha_vencimiento", hoy).lte("fecha_vencimiento", addDays(hoy, dias))
+        .gte("fecha_vencimiento", hoy).lte("fecha_vencimiento", currentSunday)
+        .order("fecha_vencimiento", { ascending: true }),
+      supabase.from("cuotas").select(fields).in("estado", ["pendiente", "parcial"])
+        .gte("fecha_vencimiento", nextMonday).lte("fecha_vencimiento", nextSunday)
         .order("fecha_vencimiento", { ascending: true }),
       supabase.from("cuotas").select(fields).in("estado", ["pendiente", "parcial", "vencida"])
         .lt("fecha_vencimiento", hoy).order("fecha_vencimiento", { ascending: true }),
     ]);
-    if (proximas.error) throw proximas.error;
+    if (estaSemana.error) throw estaSemana.error;
+    if (proximaSemana.error) throw proximaSemana.error;
     if (atrasadas.error) throw atrasadas.error;
 
     const line = (cuota: any, label: string) => {
       const nombre = cuota.prestamos?.clientes?.nombre_completo ?? "Sin nombre";
       const saldo = Number(cuota.monto_cuota) - Number(cuota.monto_cobrado ?? 0);
-      return `• ${nombre} — $${saldo.toFixed(2)} — ${label}: ${cuota.fecha_vencimiento} (Cuota #${cuota.numero_cuota})`;
+      return `• ${nombre} — $${saldo.toFixed(2)} — ${label}: ${displayDate(cuota.fecha_vencimiento)} (Cuota #${cuota.numero_cuota})`;
     };
-    const porVencer = proximas.data ?? [];
+    const porVencer = estaSemana.data ?? [];
+    const semanaSiguiente = proximaSemana.data ?? [];
     const vencidas = atrasadas.data ?? [];
+    const totalSemanaSiguiente = semanaSiguiente.reduce(
+      (total: number, cuota: any) => total + Number(cuota.monto_cuota) - Number(cuota.monto_cobrado ?? 0),
+      0,
+    );
     const mensaje = [
       `📋 Resumen diario — ${hoy}`,
-      `⏰ Cuotas por vencer (próximos ${dias} días)`,
+      `⏰ Cuotas por vencer esta semana (hasta el ${displayDate(currentSunday)})`,
       porVencer.length ? porVencer.map((c: any) => line(c, "Vence")).join("\n") : "Ninguna",
+      `📆 Próxima semana — del ${displayDate(nextMonday)} al ${displayDate(nextSunday)}`,
+      semanaSiguiente.length
+        ? `${semanaSiguiente.map((c: any) => line(c, "Vence")).join("\n")}\n💰 Total previsto: $${totalSemanaSiguiente.toFixed(2)}`
+        : "No hay cuotas previstas ✅",
       "🔴 Cuotas vencidas impagas",
       vencidas.length ? vencidas.map((c: any) => line(c, "Venció")).join("\n") : "Ninguna ✅",
     ].join("\n\n");
@@ -103,7 +131,8 @@ Deno.serve(async () => {
     });
     if (logError) throw logError;
     return json({ success: true, mensajes_enviados: chunks.length,
-      cuotas_por_vencer: porVencer.length, cuotas_vencidas: vencidas.length });
+      cuotas_esta_semana: porVencer.length, cuotas_proxima_semana: semanaSiguiente.length,
+      cuotas_vencidas: vencidas.length });
   } catch (error) {
     console.error("[telegram-cron]", error);
     return json({ error: error instanceof Error ? error.message : String(error) }, 500);
