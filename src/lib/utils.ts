@@ -28,3 +28,31 @@ export function formatDateLocal(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+export type Frecuencia = 'diario' | 'semanal' | 'quincenal' | 'mensual' | 'personalizado';
+
+export function addLoanInterval(baseDate: Date, freq: Frecuencia, count: number, customDays?: number): Date {
+  const d = new Date(baseDate.getTime());
+  if (freq === 'diario') d.setDate(d.getDate() + count);
+  else if (freq === 'semanal') d.setDate(d.getDate() + count * 7);
+  else if (freq === 'quincenal') d.setDate(d.getDate() + count * 15);
+  else if (freq === 'mensual') d.setMonth(d.getMonth() + count);
+  else if (freq === 'personalizado') d.setDate(d.getDate() + count * (customDays || 1));
+  return d;
+}
+
+export function generarCronogramaCuotas(params: {
+  monto: number;
+  tasa: number;
+  cuotas: number;
+  frecuencia: Frecuencia;
+  customDays?: number;
+  fechaInicio: Date;
+}) {
+  const total = params.monto * (1 + params.tasa / 100);
+  const perInstallment = params.cuotas > 0 ? Math.round(total / params.cuotas) : 0;
+  return Array.from({ length: params.cuotas }, (_, i) => {
+    const d = addLoanInterval(params.fechaInicio, params.frecuencia, i + 1, params.customDays);
+    return { num: i + 1, monto: perInstallment, fecha_vto: formatDateLocal(d) };
+  });
+}

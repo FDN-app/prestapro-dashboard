@@ -208,6 +208,39 @@ export function usePrestamos() {
     onError: (error) => toast.error('Error al agregar mora: ' + error.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (prestamo_id: string) => {
+      const { error } = await supabase.rpc('eliminar_prestamo', { p_prestamo_id: prestamo_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Préstamo eliminado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['prestamos'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['capital'] });
+    },
+    onError: (error) => {
+      toast.error('Error al eliminar el préstamo: ' + error.message);
+    }
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async (params: any) => {
+      const { error } = await supabase.rpc('editar_prestamo_con_cuotas', params);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Préstamo actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['prestamos'] });
+      queryClient.invalidateQueries({ queryKey: ['cuotas'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['capital'] });
+    },
+    onError: (error) => {
+      toast.error('Error al editar el préstamo: ' + error.message);
+    }
+  });
+
   return {
     ...query,
     prestamos: query.data || [],
@@ -215,6 +248,10 @@ export function usePrestamos() {
     isUpdating: updateMutation.isPending,
     createPrestamo: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
+    eliminarPrestamo: deleteMutation.mutateAsync,
+    isEliminando: deleteMutation.isPending,
+    editarPrestamo: editMutation.mutateAsync,
+    isEditando: editMutation.isPending,
     liquidarPrestamo: liquidarMutation.mutateAsync,
     isLiquidando: liquidarMutation.isPending,
     refinanciarPrestamo: refinanciarMutation.mutateAsync,

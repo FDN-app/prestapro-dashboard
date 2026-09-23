@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
-import { formatDateDisplay, cn, parseDateLocal } from '@/lib/utils';
+import { formatDateDisplay, cn, parseDateLocal, formatDateLocal, generarCronogramaCuotas, Frecuencia } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { es } from "date-fns/locale";
@@ -70,8 +70,76 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
   const [moraTipo, setMoraTipo] = useState<'porcentaje' | 'monto'>('porcentaje');
   const [moraValor, setMoraValor] = useState('10');
 
-  const { cuotas, isLoading } = useCuotas(loan.id); 
-  const { extenderPrestamo, isExtendiendo, updatePrestamo, agregarMora, isAgregandoMora } = usePrestamos();
+  const { cuotas, isLoading } = useCuotas(loan.id);
+  const { extenderPrestamo, isExtendiendo, updatePrestamo, agregarMora, isAgregandoMora, eliminarPrestamo, isEliminando, editarPrestamo, isEditando } = usePrestamos();
+
+  // Estados para Eliminar préstamo
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Estados para Editar préstamo
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditConfirm, setShowEditConfirm] = useState(false);
+  const [editMonto, setEditMonto] = useState(String(loan.monto_original));
+  const [editTasa, setEditTasa] = useState(String(loan.tasa_interes));
+  const [editComision, setEditComision] = useState(String(loan.comision || 0));
+  const [editCuotas, setEditCuotas] = useState(String(loan.cantidad_cuotas));
+  const [editFrecuencia, setEditFrecuencia] = useState<Frecuencia>(loan.frecuencia_pago);
+  const [editCustomDays, setEditCustomDays] = useState(String(loan.frecuencia_dias || 1));
+  const [editFechaInicio, setEditFechaInicio] = useState(loan.fecha_inicio?.split('T')[0] || '');
+
+  const openEditModal = () => {
+    setEditMonto(String(loan.monto_original));
+    setEditTasa(String(loan.tasa_interes));
+    setEditComision(String(loan.comision || 0));
+    setEditCuotas(String(loan.cantidad_cuotas));
+    setEditFrecuencia(loan.frecuencia_pago);
+    setEditCustomDays(String(loan.frecuencia_dias || 1));
+    setEditFechaInicio(loan.fecha_inicio?.split('T')[0] || '');
+    setShowEditModal(true);
+  };
+
+  const editSchedule = useMemo(() => {
+    if (!editFechaInicio) return [];
+    return generarCronogramaCuotas({
+      monto: Number(editMonto) || 0,
+      tasa: Number(editTasa) || 0,
+      cuotas: Number(editCuotas) || 0,
+      frecuencia: editFrecuencia,
+      customDays: Number(editCustomDays) || 1,
+      fechaInicio: parseDateLocal(editFechaInicio),
+    });
+  }, [editMonto, editTasa, editCuotas, editFrecuencia, editCustomDays, editFechaInicio]);
+
+  const handleConfirmEdit = async () => {
+    try {
+      await editarPrestamo({
+        p_prestamo_id: loan.id,
+        p_monto_original: Number(editMonto),
+        p_tasa_interes: Number(editTasa),
+        p_comision: Number(editComision) || 0,
+        p_tipo_interes: loan.tipo_interes,
+        p_cantidad_cuotas: Number(editCuotas),
+        p_frecuencia_pago: editFrecuencia,
+        p_frecuencia_dias: editFrecuencia === 'personalizado' ? Number(editCustomDays) || 1 : (editFrecuencia === 'semanal' ? 7 : editFrecuencia === 'quincenal' ? 15 : editFrecuencia === 'mensual' ? 30 : 1),
+        p_fecha_inicio: editFechaInicio,
+        p_fecha_primera_cuota: editSchedule[0]?.fecha_vto || editFechaInicio,
+        p_cuotas: editSchedule,
+      });
+      setShowEditConfirm(false);
+      setShowEditModal(false);
+    } catch (error) {
+      setShowEditConfirm(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await eliminarPrestamo(loan.id);
+      setShowDeleteDialog(false);
+    } catch (error) {
+      setShowDeleteDialog(false);
+    }
+  };
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -211,6 +279,8 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
   
   const isRefinanciado = loan.estado === 'refinanciado';
   const isPagado = loan.estado === 'pagado' || loan.estado === 'liquidado' || isRefinanciado;
+  const tieneMovimientos = (cuotas?.some((c: any) => c.estado === 'pagada' || c.estado === 'parcial')) || (loan.pagos && loan.pagos.length > 0);
+  const canManage = role === 'admin' && !tieneMovimientos;
   const progress = isPagado ? 100 : Math.max(0, Math.round(((loan.monto_original - loan.saldo_pendiente) / loan.monto_original) * 100));
   const estadoLabel = isRefinanciado
     ? 'Finalizado por renovación'
@@ -271,7 +341,7 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
               {estadoLabel}
             </span>
             
-            {((isPagado && !loan.archivado) || loan.archivado) && (
+            {((isPagado && !loan.archivado) || loan.archivado || canManage) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -287,6 +357,16 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
                   {loan.archivado && (
                     <DropdownMenuItem onClick={handleUnarchive}>
                       Desarchivar
+                    </DropdownMenuItem>
+                  )}
+                  {canManage && (
+                    <DropdownMenuItem onClick={openEditModal}>
+                      Editar préstamo
+                    </DropdownMenuItem>
+                  )}
+                  {canManage && (
+                    <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-status-red focus:text-status-red">
+                      Eliminar préstamo
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -726,6 +806,131 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Editar Préstamo */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar préstamo</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2 max-h-[70vh] overflow-y-auto">
+            <p className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded border border-border">
+              Solo se puede editar mientras no tenga cuotas pagadas ni pagos registrados. Al guardar, se recalcula el cronograma completo de cuotas.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Monto base ($)</Label>
+                <Input type="number" value={editMonto} onChange={e => setEditMonto(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Tasa de interés (%)</Label>
+                <Input type="number" value={editTasa} onChange={e => setEditTasa(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Comisión inicial ($)</Label>
+                <Input type="number" value={editComision} onChange={e => setEditComision(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Cuotas</Label>
+                <Input type="number" value={editCuotas} onChange={e => setEditCuotas(e.target.value)} />
+              </div>
+            </div>
+            <div className={cn("grid gap-3", editFrecuencia === 'personalizado' ? "grid-cols-2" : "grid-cols-1")}>
+              <div className="space-y-2">
+                <Label>Frecuencia</Label>
+                <select
+                  value={editFrecuencia}
+                  onChange={e => setEditFrecuencia(e.target.value as Frecuencia)}
+                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+                >
+                  <option value="diario">Diario</option>
+                  <option value="semanal">Semanal</option>
+                  <option value="quincenal">Quincenal</option>
+                  <option value="mensual">Mensual (30 d)</option>
+                  <option value="personalizado">Personalizado</option>
+                </select>
+              </div>
+              {editFrecuencia === 'personalizado' && (
+                <div className="space-y-2">
+                  <Label>Días entre cuotas</Label>
+                  <Input type="number" min="1" step="1" value={editCustomDays} onChange={e => setEditCustomDays(e.target.value)} />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2 flex flex-col">
+              <Label>Fecha de inicio</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between text-left font-normal h-10 px-3 py-2 border border-input rounded-md text-sm text-foreground bg-[#252B48] hover:bg-[#252B48]/90"
+                  >
+                    <span>{editFechaInicio ? formatDateDisplay(editFechaInicio) : "Seleccionar fecha"}</span>
+                    <CalendarIcon className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-popover border border-border" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={editFechaInicio ? parseDateLocal(editFechaInicio) : undefined}
+                    onSelect={(date) => { if (date) setEditFechaInicio(formatDateLocal(date)); }}
+                    initialFocus
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            {editSchedule.length > 0 && (
+              <div className="rounded border border-border p-3 text-sm space-y-1">
+                <p className="text-muted-foreground text-xs">Nuevo cronograma ({editSchedule.length} cuotas de {formatCurrency(editSchedule[0]?.monto || 0)} c/u)</p>
+                <p className="text-xs">Última cuota vence: <span className="font-medium">{formatDateDisplay(editSchedule[editSchedule.length - 1]?.fecha_vto)}</span></p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditModal(false)}>Cancelar</Button>
+            <Button onClick={() => setShowEditConfirm(true)} disabled={isEditando || !editFechaInicio || Number(editCuotas) <= 0}>
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showEditConfirm} onOpenChange={setShowEditConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de guardar los cambios?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se va a reemplazar el cronograma de cuotas de este préstamo por el nuevo. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmEdit} disabled={isEditando}>
+              {isEditando ? 'Guardando...' : 'Sí, guardar cambios'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de eliminar este préstamo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se va a borrar el préstamo #{loan.id.substring(0, 8)} y sus cuotas de forma permanente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={isEliminando} className="bg-status-red text-white hover:bg-status-red/90">
+              {isEliminando ? 'Eliminando...' : 'Sí, eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
