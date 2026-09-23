@@ -310,6 +310,10 @@ function LoanAccordionItem({ loan, clientName, replacementLoanId }: { loan: any;
             <span className="font-medium">{formatCurrency(loan.monto_original)}</span>
           </div>
           <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Tasa de Interés</span>
+            <span className="font-medium">{loan.tasa_interes}%</span>
+          </div>
+          <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Interés Total</span>
             <span className="font-medium">{isLoading ? '...' : formatCurrency(interesTotal)}</span>
           </div>
